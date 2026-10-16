@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from s3.envelope import ler_horario
+from s3.envelope import ler_horario, validar_uuid
 from s3.errors import INVALID_PAYLOAD, ErroS3
 
 "modelo do evento recebido"
@@ -132,6 +132,8 @@ class EventoQualificado:
                 raise ErroS3(
                     INVALID_PAYLOAD, f"Campo obrigatório ausente: {campo}"
                 )
+
+        validar_uuid(payload["event_id"], "event_id")
 
         evento = cls(
             evento_id=payload["event_id"],

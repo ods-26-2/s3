@@ -128,6 +128,39 @@ class TestValidarEnvelope(unittest.TestCase):
         with self.assertRaises(ErroS3):
             self.validar()
 
+    def test_versao_fora_do_formato(self):
+        """schema_version é MAJOR.MINOR em texto."""
+
+        for valor in ("1", "1.", "1.x", "1.0.1", 1.0, "v1.0"):
+            with self.subTest(valor=valor):
+                self.dados["schema_version"] = valor
+
+                with self.assertRaises(ErroS3):
+                    self.validar()
+
+    def test_identificadores_uuid_v4(self):
+        """message_id e session_id são UUID v4 (seção 2, regra 3)."""
+
+        for campo in ("message_id", "session_id"):
+            for valor in (
+                "msg-001",
+                "6d9f2b1c-3e4a-1b5c-8d6e-7f8a9b0c1d2e",   # versão 1
+                "6d9f2b1c3e4a4b5c8d6e7f8a9b0c1d2e",       # sem hífens
+                123,
+            ):
+                with self.subTest(campo=campo, valor=valor):
+                    self.dados = mensagem_evento()
+                    self.dados[campo] = valor
+
+                    with self.assertRaises(ErroS3) as contexto:
+                        self.validar()
+
+                    self.assertEqual(contexto.exception.codigo, INVALID_MESSAGE)
+
+    def test_uuid_maiusculo_aceito(self):
+        self.dados["message_id"] = self.dados["message_id"].upper()
+        self.validar()
+
     def test_sequence_invalido(self):
         for valor in (-1, "3", True):
             with self.subTest(valor=valor):

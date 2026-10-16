@@ -9,6 +9,7 @@ from s3.envelope import (
     ler_horario,
     montar_envelope,
     validar_envelope,
+    validar_uuid,
 )
 from s3.errors import INVALID_MESSAGE, INVALID_PAYLOAD, ErroS3
 from s3.output import payload_alerta
@@ -35,6 +36,19 @@ def _texto(payload: dict, campo: str, obrigatorio: bool = True):
 
     if not isinstance(valor, str) or not valor.strip():
         raise ErroS3(INVALID_PAYLOAD, f"{campo} deve ser um texto não vazio.")
+
+    return valor
+
+
+def _identificador(payload: dict, campo: str, obrigatorio: bool = True):
+    """UUID v4, como alert_id, event_id e clip_id."""
+
+    valor = payload.get(campo)
+
+    if valor is None and not obrigatorio:
+        return None
+
+    validar_uuid(valor, campo)
 
     return valor
 
@@ -147,8 +161,8 @@ class ProcessadorComandos:
             severidade=payload["severity"],
             destinatarios=payload["recipients"],
             canais=payload["channels"],
-            evento_id=_texto(payload, "event_id", obrigatorio=False),
-            clip_id=_texto(payload, "clip_id", obrigatorio=False),
+            evento_id=_identificador(payload, "event_id", obrigatorio=False),
+            clip_id=_identificador(payload, "clip_id", obrigatorio=False),
             correlacao_id=message_id,
         )
 
@@ -157,7 +171,7 @@ class ProcessadorComandos:
     def _acao(self, payload: dict, message_id: str) -> dict:
         """ods.s3.alert_action.command"""
 
-        alerta_id = _texto(payload, "alert_id")
+        alerta_id = _identificador(payload, "alert_id")
         acao = payload.get("action")
         autor = _texto(payload, "actor")
         motivo = _texto(payload, "reason", obrigatorio=False)

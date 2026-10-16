@@ -1,6 +1,7 @@
 
 import json
 import unittest
+from uuid import uuid4
 
 from s3.commands import ProcessadorComandos
 from s3.errors import ErroS3
@@ -98,11 +99,19 @@ class TestAlertAction(BaseComandos):
 
     def test_alerta_inexistente(self):
         dados = self.acao("CLOSE")
-        dados["payload"]["alert_id"] = "nao-existe"
+        dados["payload"]["alert_id"] = str(uuid4())
 
         resposta = self.enviar(dados)
 
         self.assertEqual(resposta["payload"]["error"]["code"], "ALERT_NOT_FOUND")
+
+    def test_alert_id_nao_uuid(self):
+        dados = self.acao("CLOSE")
+        dados["payload"]["alert_id"] = "nao-existe"
+
+        resposta = self.enviar(dados)
+
+        self.assertEqual(resposta["payload"]["error"]["code"], "INVALID_PAYLOAD")
 
     def test_acao_desconhecida_ou_sem_actor(self):
         for dados in (
@@ -166,6 +175,23 @@ class TestCriarAlerta(BaseComandos):
         self.assertEqual(resposta["schema"], "ods.s3.alert.reply")
         self.assertEqual(alerta.titulo, "Acesso negado")
         self.assertEqual(alerta.destinatarios, ["group:portaria"])
+
+    def test_event_id_e_clip_id_uuid(self):
+        """Opcionais, mas com o tipo de ods.s3.alert (UUID)."""
+
+        for campo in ("event_id", "clip_id"):
+            with self.subTest(campo=campo):
+                resposta = self.enviar(
+                    comando(CRIAR, self.payload(**{campo: "evt-001"}))
+                )
+                self.assertEqual(
+                    resposta["payload"]["error"]["code"], "INVALID_PAYLOAD"
+                )
+
+                resposta = self.enviar(
+                    comando(CRIAR, self.payload(**{campo: str(uuid4())}))
+                )
+                self.assertEqual(resposta["payload"]["status"], "OK")
 
     def test_destinatario_invalido(self):
         resposta = self.enviar(comando(CRIAR, self.payload(recipients=["portaria"])))

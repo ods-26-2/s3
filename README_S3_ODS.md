@@ -1,6 +1,6 @@
 # S3 — Alertas e Notificações (Squad VER-3): estado do componente
 
-*Atualizado em 14/10/2026, depois da migração para a Especificação de interfaces 1.0.*
+*Atualizado em 16/10/2026, depois da conferência campo a campo com a Especificação de interfaces 1.0 (`ods-6cfinal.html`).*
 
 ## Resumo
 
@@ -27,6 +27,14 @@ Também existe um adaptador Kafka que segue o Guia de Uso do Kafka da TRA-1.
 | Sem consulta | `ods.s3.alerts.query` com filtros e paginação |
 | Sem transporte | `kafka_adapter.py` e `python -m s3` |
 
+### Conferência com a especificação (16/10/2026)
+
+- **Bate com o contrato:** envelope e perfis; campos e tipos de `ods.s2.event`, `ods.s3.alert`, dos dois comandos e da consulta; códigos `ALERT_NOT_FOUND`, `INVALID_TRANSITION`, `INVALID_RECIPIENT` e `INVALID_CHANNEL`; formato do ROUTING; `correlation_id` (`event_id` ou `message_id` do comando criador); `limit ≤ 500`; reply `ods.s3.alerts.reply`.
+- **Corrigido nesta revisão:**
+  - os identificadores passaram a ser validados como UUID v4: `message_id` e `session_id` no envelope; `event_id`, `alert_id` e `clip_id` no payload;
+  - `schema_version` agora precisa ser `MAJOR.MINOR` (antes, `"1.x"` ou `"1"` passavam).
+- **Não implementado, por depender de outras equipes:** consumo de `ods.session.started` e de `ods.artifact.published`, e conferência do `producer` dos comandos (pendências 8, 12 e 13 do README.md).
+
 Os nomes internos (`Alerta`, `EventoQualificado`, `evento_id`…) continuam em português. A tradução para os nomes do contrato fica só na borda: `contracts.py`, `output.py` e `commands.py`.
 
 ## Bugs corrigidos
@@ -48,7 +56,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado:** 176 testes e 63 subtestes passando (pytest e unittest).
+**Resultado:** 182 testes e 79 subtestes passando (pytest e unittest).
 
 O que os testes cobrem:
 - envelope e horários;
@@ -70,14 +78,17 @@ O que os testes **não** cobrem: broker real, persistência durável, envio real
    - a perda de mensagem quando a publicação falha (fila de saída);
    - a deduplicação, que hoje se perde quando o processo reinicia.
 2. **Teste manual curto contra o broker de testes,** combinado com a TRA-1.
-3. **Organização do repositório.** Documentos de outras equipes estão versionados junto com o código (PDFs, SVG da arquitetura). O ideal é movê-los para `docs/` ou removê-los do git.
+3. **Organização do repositório.**
+   - Documentos de outras equipes estão junto com o código (`Guia_Kafka_B2 (1).PDF`, `ods-6cfinal.html` e `ods-6cfinal_files/`). O ideal é movê-los para `docs/`.
+   - A pasta `.git copy/` (148 arquivos de um repositório antigo) e o `LICENSE copy` estão versionados e devem sair do git.
 4. **`Analise_Projeto_S3_ODS.pdf` está desatualizado** em relação a este documento.
 
 ### Com outras equipes
-As 11 perguntas estão na seção "Pendências com outras equipes" do [README.md](README.md). As mais urgentes:
+As 14 perguntas estão na seção "Pendências com outras equipes" do [README.md](README.md). As mais urgentes:
 - o nome dos tópicos (TRA-1);
 - como o S3 obtém o `clip_id` (TRA-1 e MOD-2);
-- o comportamento nas fases `UPDATED` e `ENDED` (VER-6 e A5).
+- o comportamento nas fases `UPDATED` e `ENDED` (VER-6 e A5);
+- `session_id` em alertas criados por comando: sem ele, o validador de B1 rejeita a mensagem (TRA-1 e TRA-2).
 
 ## Critérios de aceite
 

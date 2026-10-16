@@ -1,5 +1,6 @@
 
 import json
+import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -11,8 +12,15 @@ from s3.errors import INVALID_MESSAGE, INVALID_PAYLOAD, ErroS3
 PRODUTOR = "S3"
 VERSAO_SCHEMA = "1.0"
 
-# Aceita qualquer MINOR do MAJOR conhecido (seção 2, regra 8).
-MAJOR_SUPORTADO = "1."
+# schema_version é MAJOR.MINOR; aceita qualquer MINOR
+# do MAJOR conhecido (seção 2, regra 8).
+VERSAO_SUPORTADA = re.compile(r"1\.\d+")
+
+# Identificadores são UUID v4 em texto (seção 2, regra 3).
+FORMATO_UUID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
 
 # Presentes em toda mensagem.
 CAMPOS_FIXOS = (
@@ -91,6 +99,20 @@ def ler_horario(
     return horario
 
 
+def validar_uuid(
+    valor: object,
+    campo: str,
+    codigo: str = INVALID_PAYLOAD,
+) -> None:
+    """
+    UUID v4 em texto, com hífens:
+    6d9f2b1c-3e4a-4b5c-8d6e-7f8a9b0c1d2e.
+    """
+
+    if not isinstance(valor, str) or not FORMATO_UUID.fullmatch(valor):
+        raise ErroS3(codigo, f"{campo} deve ser um UUID v4: {valor!r}")
+
+
 def decodificar(mensagem: str | bytes) -> dict:
     """
     Converte o texto recebido em objeto JSON.
@@ -140,19 +162,22 @@ def validar_envelope(
             INVALID_MESSAGE, f"schema inesperado: {dados['schema']}"
         )
 
-    if not str(dados["schema_version"]).startswith(MAJOR_SUPORTADO):
-        raise ErroS3(
-            INVALID_MESSAGE,
-            f"Versão não suportada: {dados['schema_version']}",
-        )
+    versao = dados["schema_version"]
 
-    for campo in ("message_id", "producer"):
-        valor = dados[campo]
+    if not isinstance(versao, str) or not VERSAO_SUPORTADA.fullmatch(versao):
+        raise ErroS3(INVALID_MESSAGE, f"Versão não suportada: {versao!r}")
 
-        if not isinstance(valor, str) or not valor.strip():
-            raise ErroS3(INVALID_MESSAGE, f"{campo} inválido.")
+    producer = dados["producer"]
+
+    if not isinstance(producer, str) or not producer.strip():
+        raise ErroS3(INVALID_MESSAGE, "producer inválido.")
+
+    validar_uuid(dados["message_id"], "message_id", INVALID_MESSAGE)
 
     ler_horario(dados["published_at"], "published_at", INVALID_MESSAGE)
+
+    if "session_id" in obrigatorios:
+        validar_uuid(dados["session_id"], "session_id", INVALID_MESSAGE)
 
     if "captured_at" in obrigatorios:
         ler_horario(dados["captured_at"], "captured_at", INVALID_MESSAGE)

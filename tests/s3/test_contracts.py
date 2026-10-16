@@ -101,6 +101,16 @@ class TestDeMensagem(unittest.TestCase):
         self.assertIsNone(recebido.zona_id)
         self.assertEqual(recebido.detalhes, {})
 
+    def test_event_id_nao_uuid(self):
+        """event_id é UUID v4 (seção 4)."""
+
+        dados = mensagem_evento({"event_id": "evt-001"})
+
+        with self.assertRaises(ErroS3) as contexto:
+            EventoQualificado.de_mensagem(dados)
+
+        self.assertEqual(contexto.exception.codigo, INVALID_PAYLOAD)
+
 
 if __name__ == "__main__":
     unittest.main()

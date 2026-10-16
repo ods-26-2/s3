@@ -4,7 +4,7 @@ Componente S3 da arquitetura 6c da ODS 2026/2, do squad **VER-3 (EPI)**.
 
 O S3 leva o evento qualificado à pessoa certa, pelo canal certo, e registra o que aconteceu depois: quem reconheceu, quem silenciou e quem encerrou o alerta. Ele não tem regra de EPI no código. O que cada tipo de evento gera vem do artefato **ROUTING** da aplicação, por isso o mesmo S3 atende A5 (EPI), A3 e A7.
 
-Os contratos seguem a **Especificação de interfaces 1.0 (arquitetura 6c)**. O transporte segue o **Guia de Uso do Kafka** da TRA-1.
+Os contratos seguem a **Especificação de interfaces 1.0 (arquitetura 6c)** ([`ods-6cfinal.html`](ods-6cfinal.html)). O transporte segue o **Guia de Uso do Kafka** da TRA-1.
 
 ## Onde o S3 está
 
@@ -24,6 +24,8 @@ I1 → I9 → S2 (VER-6) ──ods.s2.event──► S3 ──ods.s3.alert──
 | Comando | `ods.s3.alert.command` → `.reply` | CMD / RPL | A1, A2, A3, A5 e A7 criam alertas de negócio |
 | Comando | `ods.s3.alert_action.command` → `.reply` | CMD / RPL | ACKNOWLEDGE, MUTE e CLOSE |
 | Consulta | `ods.s3.alerts.query` → `ods.s3.alerts.reply` | CMD / RPL | Histórico com filtros e paginação |
+
+Quem envia cada comando, pela especificação (seção 9): `alert.command` e `alerts.query` vêm de A1, A2, A3, A5 e A7; `alert_action.command` vem só dos backends de A3, A5 e A7. O S3 consome apenas S2 e o artefato ROUTING: **não consome S4** (`ods.s4.clip`) nem `ods.session.started`.
 
 Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 
@@ -45,7 +47,8 @@ Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 
 ## Regras de mensagens
 
-- **Envelope comum de 13 campos.** Horários em ISO 8601 UTC com milissegundos (`2026-09-23T14:29:59.870Z`). Aceita qualquer versão `1.x`.
+- **Envelope comum de 13 campos.** Horários em ISO 8601 UTC com milissegundos (`2026-09-23T14:29:59.870Z`). `schema_version` é `MAJOR.MINOR` e aceita qualquer `1.<n>`.
+- **Identificadores são UUID v4** (seção 2, regra 3): `message_id` e `session_id` no envelope; `event_id`, `alert_id` e `clip_id` no payload. Fora do formato: `INVALID_MESSAGE` (envelope) ou `INVALID_PAYLOAD` (payload).
 - **Mensagem inválida** (JSON quebrado, envelope ou payload fora do contrato) é **descartada e registrada em log**, nunca processada "na tentativa".
 - **Duplicatas:**
   - mensagem com `message_id` já processado é descartada;
@@ -134,13 +137,18 @@ Itens da revisão da especificação (seção 10, item 17), em que o VER-3 é re
 | 1 | Nome dos tópicos: a especificação usa `ods.s3.alert`; o Guia do Kafka sugere `ods.alerta.emitido` | TRA-1 |
 | 2 | Campos de horário do envelope: o guia usa `occurred_at`; a especificação usa `published_at`/`captured_at` | TRA-1 |
 | 3 | Tópico das replies e como elas chegam a quem pediu | TRA-1 |
-| 4 | Como o S3 obtém o `clip_id` do S4, se a lista de consumo do S3 é fechada em S2 | TRA-1, MOD-2 |
-| 5 | `session_id` e `sequence` em alertas criados por comando, que não têm sessão de origem | TRA-1, TRA-2 |
+| 4 | Como o S3 obtém o `clip_id` do S4. A especificação manda vincular o `clip_id` quando a rota tem `capture: true`, mas a seção 9 diz que o S3 consome só S2, e `ods.s4.clip` não lista o S3 entre os consumidores. Sem mudança no contrato, a saída possível é a aplicação juntar `alert.event_id` com `clip.event_id` (A5 consome `ods.s4.clip`) | TRA-1, MOD-2 |
+| 5 | `session_id` e `sequence` em alertas criados por comando, que não têm sessão de origem. O perfil EV-SERVIÇO exige os dois, e o validador de B1 rejeita a mensagem no publicador: hoje esses alertas saem sem `session_id` | TRA-1, TRA-2 |
 | 6 | Nas fases `UPDATED` e `ENDED`: atualizar a mensagem? Encerrar o alerta quando a violação termina? | VER-6, A5 |
 | 7 | Transições permitidas e o que acontece quando `mute_until` vence | A5, B6 |
-| 8 | Autorização: quem pode mandar ACKNOWLEDGE, MUTE e CLOSE | A5, TRA-1 |
+| 8 | Autorização: quem pode mandar ACKNOWLEDGE, MUTE e CLOSE. A especificação limita os remetentes de `alert_action.command` a A3, A5 e A7, mas o S3 não confere o `producer`, e não há código de erro para remetente não autorizado | A5, TRA-1 |
 | 9 | Códigos de erro que não estão na especificação: `INVALID_PAYLOAD` e `INVALID_MESSAGE` | TRA-1 |
 | 10 | Quem executa e interrompe a entrega física de `SOUND` e `PUSH` (inclusive em ACK, MUTE, CLOSE e no vencimento de `mute_until`) | TRA-1, A5 |
 | 11 | Campo `muted_by` no alerta, para o registro de quem desligou (RF6 do A5) | TRA-1, A5 |
+| 12 | `ods.session.started`: a seção 7 diz que a camada 3 reinicia o estado a cada sessão, e o contrato fala em "todo componente com estado", mas a lista fechada da seção 9 não inclui o S3. O S3 deve consumir? Se consumir, alertas abertos **não** podem sumir num SEEK de replay | TRA-2, TRA-1 |
+| 13 | `ods.artifact.published`: quem usa um artefato deve recarregá-lo ao receber o anúncio. O S3 só carrega o ROUTING de arquivo, na partida, e não há contrato para buscar o conteúdo pela `uri` (`registry://…`) | TRA-1, MOD-1 (B5) |
+| 14 | A7 é dono de um artefato ROUTING (seção 8), e a especificação descreve as notificações do A7 como "`ods.s3.alert.command` com o artefato ROUTING". Mas o ROUTING é aplicado a `ods.s2.event`, e a build do A7 não consome o S2. Para que serve o ROUTING do A7? | VER-4, TRA-1 |
+
+Além do item 17 da seção 10 (S3, revisores VER-3 e VER-4), o VER-3 também revisa os itens 1, 3, 15, 16 e 20. O item 20 inclui o formato do ROUTING.
 
 O estado completo do componente está em [README_S3_ODS.md](README_S3_ODS.md).

@@ -3,7 +3,7 @@
 **Para:** TRA-1 (B1 e B3) e TRA-2 (B2). **Cópia:** VER-4 (revisor do item 17), VER-6 (S2) e MOD-2 (S4).
 **De:** VER-3, componente S3 — Alertas e Notificações.
 
-> **Atualização de 21/10/2026:** os pontos 1, 4 e 6 foram respondidos, e o S3 já segue as respostas. Falta escrever as três decisões na especificação. O teste real com S2 e aplicações ficou para depois, porque eles ainda não conseguem mandar e receber mensagens. Continuam abertos os pontos 2, 3, 5, 7 e 8.
+> **Atualização de 21/10/2026:** os pontos 1, 4 e 6 foram respondidos, e o S3 já segue as respostas. Falta escrever as três decisões na especificação. O teste real com S2 e aplicações ficou para depois, porque eles ainda não conseguem mandar e receber mensagens. Os pontos 2, 3, 5, 7 e 8 receberam decisões provisórias do VER-3, a confirmar na fase de testes ([DECISOES_S3.md](DECISOES_S3.md)).
 
 O item 17 da seção 10 ("S3 cria alertas pelo artefato ROUTING e por comando; `event_id` opcional; ações e histórico por mensagem") é implementável, com as ressalvas abaixo. Comparamos o S3 campo a campo com a especificação. O código segue os contratos, menos no ponto 1, que não tem como ser resolvido sem decisão de vocês.
 

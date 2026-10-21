@@ -8,8 +8,9 @@ INVALID_TRANSITION = "INVALID_TRANSITION"
 INVALID_RECIPIENT = "INVALID_RECIPIENT"
 INVALID_CHANNEL = "INVALID_CHANNEL"
 
-# Códigos provisórios do S3, ainda não listados na especificação
-# (pendência de revisão com o TRA-1).
+# Códigos do S3 definidos pelo VER-3 (dono da tabela de erros do S3,
+# seção 2, regra 6), ainda não escritos na especificação; avisar o
+# TRA-1 na fase de testes (pendência 9).
 INVALID_MESSAGE = "INVALID_MESSAGE"
 INVALID_PAYLOAD = "INVALID_PAYLOAD"
 

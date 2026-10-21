@@ -6,6 +6,9 @@ Executa o S3 ligado ao Kafka.
         $env:S3_KAFKA_BOOTSTRAP = "host:porta"
         python -m s3 --routing jsons/routing_a5.json --tempo-limite 60
 
+Sem --routing (build sem S2, como a do A7), o S3 só atende
+comandos e consultas.
+
 O broker de testes é pago e compartilhado: use sempre
 --tempo-limite ou --max-mensagens (Guia do Kafka, 4.5).
 """
@@ -16,7 +19,7 @@ import logging
 
 from s3.commands import ProcessadorComandos
 from s3.ingestion import IngestorClipes, IngestorEventos
-from s3.kafka_adapter import AssinanteKafka, PublicadorKafka
+from s3.kafka_adapter import AssinanteKafka, PublicadorKafka, topicos_entrada
 from s3.routing import RoteadorAlertas
 from s3.service import AlertService
 from s3.subscription import (
@@ -29,8 +32,11 @@ from s3.subscription import (
 def main() -> None:
     parser = argparse.ArgumentParser(description="S3 — Alertas e notificações")
     parser.add_argument(
-        "--routing", required=True,
-        help="Arquivo JSON com o conteúdo do artefato ROUTING",
+        "--routing",
+        help=(
+            "Arquivo JSON com o conteúdo do artefato ROUTING. Sem ele, "
+            "o S3 só atende comandos (build sem S2, como a do A7)"
+        ),
     )
     parser.add_argument(
         "--versao-routing",
@@ -45,16 +51,21 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO)
 
-    with open(argumentos.routing, encoding="utf-8") as arquivo:
-        conteudo = json.load(arquivo)
+    roteador = None
 
-    versao = argumentos.versao_routing or argumentos.routing
-    roteador = RoteadorAlertas.de_artefato(conteudo, versao)
+    if argumentos.routing:
+        with open(argumentos.routing, encoding="utf-8") as arquivo:
+            conteudo = json.load(arquivo)
+
+        versao = argumentos.versao_routing or argumentos.routing
+        roteador = RoteadorAlertas.de_artefato(conteudo, versao)
+    else:
+        logging.info("sem ROUTING: só comandos e consultas")
 
     publicador = PublicadorKafka()
     service = AlertService(roteador=roteador, publicador=publicador)
 
-    assinante = AssinanteKafka()
+    assinante = AssinanteKafka(topicos=topicos_entrada(roteador is not None))
     DespachanteS3(
         ConectorEventos(assinante, IngestorEventos(service)),
         ConectorComandos(assinante, ProcessadorComandos(service), publicador),

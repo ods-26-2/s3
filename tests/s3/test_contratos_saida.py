@@ -478,9 +478,9 @@ class TestRepublicacaoEOrdem(BaseS3):
 
     def test_ended_antes_de_started(self):
         """
-        Comportamento atual, registrado como risco (pendência 6):
-        se o ENDED chegar antes do STARTED, o ENDED é ignorado e o
-        STARTED cria um alerta para uma violação que já terminou.
+        Decisão provisória do VER-3 (pendência 6): se o ENDED chegar
+        antes do STARTED, o STARTED ainda cria o alerta. A violação
+        aconteceu e precisa de registro; quem encerra é uma pessoa.
         """
 
         event_id = str(uuid4())

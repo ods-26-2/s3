@@ -11,10 +11,13 @@ import unittest
 from unittest import mock
 
 from s3.kafka_adapter import (
+    TOPICOS_COMANDOS,
+    TOPICOS_ENTRADA,
     VARIAVEL_BROKER,
     AssinanteKafka,
     PublicadorKafka,
     endereco_broker,
+    topicos_entrada,
 )
 
 
@@ -139,6 +142,22 @@ class TestAssinanteKafka(unittest.TestCase):
     def test_executar_sem_assinar(self):
         with self.assertRaises(RuntimeError):
             AssinanteKafka(consumidor=ConsumidorFalso([])).executar(max_mensagens=1)
+
+
+class TestTopicosDeEntrada(unittest.TestCase):
+
+    def test_com_roteamento_assina_tudo(self):
+        self.assertEqual(topicos_entrada(True), TOPICOS_ENTRADA)
+        self.assertIn("ods.s2.event", TOPICOS_ENTRADA)
+
+    def test_sem_roteamento_so_comandos(self):
+        """Build sem S2 (A7): não assina ods.s2.event nem ods.s4.clip."""
+
+        topicos = topicos_entrada(False)
+
+        self.assertEqual(topicos, TOPICOS_COMANDOS)
+        self.assertNotIn("ods.s2.event", topicos)
+        self.assertNotIn("ods.s4.clip", topicos)
 
 
 class TestPublicadorKafka(unittest.TestCase):

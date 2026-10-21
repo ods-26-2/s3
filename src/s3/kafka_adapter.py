@@ -15,16 +15,31 @@ VARIAVEL_BROKER = "S3_KAFKA_BOOTSTRAP"
 VARIAVEL_GRUPO = "S3_KAFKA_GROUP_ID"
 GRUPO_PADRAO = "S3-alertas"
 
-# Um tópico por schema (Especificação 1.0). O Guia do Kafka
-# sugere outra nomenclatura (ods.alerta.emitido...): pendente
-# com o TRA-1. Para trocar, passe o mapa schema → tópico.
-TOPICOS_ENTRADA = (
+# Um tópico por schema, com o nome do schema (Especificação 1.0,
+# frente B3). Decisão provisória do VER-3: o Guia do Kafka sugere
+# outra nomenclatura (ods.alerta.emitido...), a confirmar com o
+# TRA-1 na fase de testes. Para trocar, passe o mapa schema → tópico.
+TOPICOS_EVENTOS = (
     "ods.s2.event",
     "ods.s4.clip",
+)
+
+TOPICOS_COMANDOS = (
     "ods.s3.alert.command",
     "ods.s3.alert_action.command",
     "ods.s3.alerts.query",
 )
+
+TOPICOS_ENTRADA = TOPICOS_EVENTOS + TOPICOS_COMANDOS
+
+
+def topicos_entrada(com_roteamento: bool = True) -> tuple[str, ...]:
+    """
+    Sem ROUTING (por exemplo, na build do A7, que não tem S2),
+    o S3 só cria alertas por comando: não assina S2 nem S4.
+    """
+
+    return TOPICOS_ENTRADA if com_roteamento else TOPICOS_COMANDOS
 
 
 def endereco_broker(endereco: str | None = None) -> str:

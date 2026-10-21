@@ -63,7 +63,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado:** 231 testes e 111 subtestes passando. O alerta criado por comando segue a regra aprovada de `session_id` opcional (pendência 5), conferida em `tests/s3/contrato.py` com `origem="comando"`.
+**Resultado:** 233 testes e 111 subtestes passando. O alerta criado por comando segue a regra aprovada de `session_id` opcional (pendência 5), conferida em `tests/s3/contrato.py` com `origem="comando"`.
 
 O que os testes cobrem:
 - envelope e horários;
@@ -90,6 +90,8 @@ O que os testes **não** cobrem: broker real, persistência durável, envio real
 4. **`Analise_Projeto_S3_ODS.pdf` está desatualizado** em relação a este documento.
 
 ### Com outras equipes
+Em 21/10/2026 cada pendência recebeu uma decisão (aprovada, do VER-3 ou provisória): ver [DECISOES_S3.md](DECISOES_S3.md). As provisórias são confirmadas na fase de testes.
+
 As 19 perguntas estão na seção "Pendências com outras equipes" do [README.md](../README.md). As mais urgentes:
 - o nome dos tópicos (TRA-1);
 - como o S3 obtém o `clip_id` (TRA-1 e MOD-2);

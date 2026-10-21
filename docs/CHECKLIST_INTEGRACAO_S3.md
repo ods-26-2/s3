@@ -4,6 +4,8 @@
 
 Cada item tem uma marca: **[Oficial]** é exigido pela especificação; **[Pendente]** depende de decisão (com o número da pendência); **[Recomendação]** é proposta técnica do VER-3.
 
+As decisões provisórias de [DECISOES_S3.md](DECISOES_S3.md) são confirmadas durante estes testes.
+
 Os testes de integração devem usar o broker de testes **só em janela combinada com a TRA-1**, porque ele é pago e compartilhado. Tudo o que der para provar localmente deve ser provado antes.
 
 ## 1. Verificações por equipe
@@ -29,7 +31,7 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 - [ ] **[Pendente 7]** A5 valida a tabela de transições e o que acontece quando `mute_until` vence.
 - [ ] **[Pendente 8]** Cada backend decide quem (`actor`) pode reconhecer, silenciar e encerrar.
 - [ ] **[Pendente 10]** Quem toca o som e envia o push. O S3 só publica `channels`.
-- [ ] **[Pendente 14]** **A7:** para que serve o ROUTING do A7, se a build dele não tem o S2?
+- [ ] **[Provisória 14]** **A7:** o S3 da build do A7 roda sem `--routing` e só atende comandos. Confirmar que o A7 não precisa de ROUTING.
 - [ ] **[Decidido 4]** **A5:** o `clip_id` agora vem no alerta quando a rota tem `capture: true`. Ele pode chegar numa republicação do alerta, com o mesmo `state`, alguns segundos depois da criação.
 
 ### B1 (TRA-1) — contratos

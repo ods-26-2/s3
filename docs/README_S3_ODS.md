@@ -38,7 +38,7 @@ Também existe um adaptador Kafka que segue o Guia de Uso do Kafka da TRA-1.
   - um comando com envelope inválido agora recebe reply `ERROR` (`INVALID_MESSAGE`); antes, era descartado sem resposta;
   - `ods.s2.event` só é aceito do produtor `S2`;
   - a paginação da consulta não repete alertas criados no mesmo milissegundo;
-  - um alerta criado por comando sem `session_id` gera aviso no log; nenhum valor é inventado;
+  - um alerta criado por comando sai sem `session_id` (nenhum valor é inventado); em 21/10/2026 isso passou a ser a regra proposta pelo VER-3 (pendência 5);
   - novo `tests/s3/contrato.py` confere as mensagens publicadas e os exemplos de `jsons/` com regras escritas a partir da especificação.
 - **Não implementado, por depender de outras equipes:** consumo de `ods.session.started` e de `ods.artifact.published`, e conferência do `producer` dos comandos (pendências 8, 12 e 13 do README.md).
 
@@ -63,7 +63,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado:** 208 testes e 98 subtestes passando, mais 1 falha esperada (`xfailed`: a pendência 5, `session_id` em alerta criado por comando).
+**Resultado:** 212 testes e 98 subtestes passando. O alerta criado por comando segue a regra proposta de `session_id` opcional (pendência 5), conferida em `tests/s3/contrato.py` com `origem="comando"`.
 
 O que os testes cobrem:
 - envelope e horários;
@@ -86,17 +86,15 @@ O que os testes **não** cobrem: broker real, persistência durável, envio real
    - a deduplicação, que hoje se perde quando o processo reinicia;
    - o contador `sequence`, que hoje volta a 0 quando o processo reinicia.
 2. **Teste manual curto contra o broker de testes,** combinado com a TRA-1.
-3. **Organização do repositório.**
-   - Documentos de outras equipes estão junto com o código (`Guia_Kafka_B2 (1).PDF`, `ods-6cfinal.html` e `ods-6cfinal_files/`). O ideal é movê-los para `docs/`.
-   - A pasta `.git copy/` (148 arquivos de um repositório antigo) e o `LICENSE copy` estão versionados e devem sair do git.
+3. ~~**Organização do repositório.**~~ Feita em 21/10/2026: documentação em `docs/`, `.git copy/`, `LICENSE copy` e a especificação fora do git.
 4. **`Analise_Projeto_S3_ODS.pdf` está desatualizado** em relação a este documento.
 
 ### Com outras equipes
-As 19 perguntas estão na seção "Pendências com outras equipes" do [README.md](README.md). As mais urgentes:
+As 19 perguntas estão na seção "Pendências com outras equipes" do [README.md](../README.md). As mais urgentes:
 - o nome dos tópicos (TRA-1);
 - como o S3 obtém o `clip_id` (TRA-1 e MOD-2);
 - o comportamento nas fases `UPDATED` e `ENDED` (VER-6 e A5);
-- `session_id` em alertas criados por comando: sem ele, o validador de B1 rejeita a mensagem (TRA-1 e TRA-2);
+- aprovação da regra de `session_id` opcional em alertas criados por comando, já adotada no S3 (TRA-1 e TRA-2);
 - deduplicação por `alert_id` e ordem de entrega, que afetam todos os consumidores do S3 (TRA-1; pendências 17 e 18).
 
 Contratos, produtores e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_CONTRATOS_S3.md). Roteiro de integração: [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).

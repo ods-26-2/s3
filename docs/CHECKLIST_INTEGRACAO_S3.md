@@ -1,6 +1,6 @@
 # Checklist de integração do S3 (VER-3)
 
-*Referência: Especificação de interfaces 1.0, arquitetura 6c ([`ods-6cfinal.html`](ods-6cfinal.html)). Contratos e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_CONTRATOS_S3.md). Pendências numeradas: [README.md](README.md).*
+*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Contratos e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_CONTRATOS_S3.md). Pendências numeradas: [README.md](../README.md).*
 
 Cada item tem uma marca: **[Oficial]** é exigido pela especificação; **[Pendente]** depende de decisão (com o número da pendência); **[Recomendação]** é proposta técnica do VER-3.
 
@@ -33,7 +33,7 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 
 ### B1 (TRA-1) — contratos
 - [ ] **[Oficial]** Passar as mensagens publicadas pelo S3 (`ods.s3.alert` e as três replies) no validador de B1, assim que ele for publicado. Hoje usamos `tests/s3/contrato.py`, escrito a partir da especificação.
-- [ ] **[Pendente 5]** Decidir `session_id` e `sequence` em alerta criado por comando. Hoje essas mensagens seriam rejeitadas pelo validador.
+- [ ] **[Pendente 5]** Aprovar a regra proposta pelo VER-3, já adotada no S3: `session_id` opcional só em `ods.s3.alert` criado por comando, com `sequence` por produtor e `correlation_id` = `message_id` do comando. Sem aprovação, o validador rejeita essas mensagens.
 - [ ] **[Pendente 9]** Aprovar ou substituir os códigos provisórios `INVALID_PAYLOAD` e `INVALID_MESSAGE`.
 - [ ] **[Pendente 17]** Esclarecer a regra 7 da seção 2: o que significa "`alert_id` é chave de deduplicação".
 - [ ] **[Pendente 19]** Decidir a resposta a um produtor fora da lista do contrato.
@@ -47,7 +47,7 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 ### B3 (TRA-1) — barramento
 - [ ] **[Pendente 1]** Confirmar os nomes dos tópicos. A especificação diz "um tópico por schema"; o S3 usa o nome do schema como tópico.
 - [ ] **[Pendente 3]** Confirmar o tópico das replies (`ods.s3.<x>.reply`) e o filtro por `correlation_id`.
-- [ ] **[Pendente 18]** Garantia de ordem por alerta: chave de partição `alert_id` em `ods.s3.alert` e `event_id` em `ods.s2.event`. Hoje o `PublicadorKafka` publica **sem chave**.
+- [ ] **[Pendente 18]** Garantia de ordem por alerta: chave de partição `alert_id` em `ods.s3.alert` e `event_id` em `ods.s2.event`. Desde 21/10/2026, o `PublicadorKafka` usa o `alert_id` como chave em `ods.s3.alert`; falta o B3 confirmar, e o S2 decidir a chave de `ods.s2.event`.
 - [ ] **[Pendente 19]** ACL por tópico e credencial por aplicação, para que só A3, A5 e A7 escrevam em `alert_action.command`.
 - [ ] **[Recomendação]** Teste curto no broker de testes: um `ods.s2.event` de exemplo, o alerta, um ACK, um CLOSE e uma consulta, com `--tempo-limite`.
 
@@ -77,15 +77,15 @@ Conferido no teste `TestRepublicacaoEOrdem.test_cada_republicacao_tem_message_id
 
 | Situação | Comprovado no código ou risco de integração | Efeito |
 |---|---|---|
-| `PublicadorKafka.publicar` chama `produce()` **sem chave** | **Comprovado** (`kafka_adapter.py`) | Em tópico com mais de uma partição, as mensagens do mesmo alerta podem ir para partições diferentes e chegar fora de ordem |
+| Até 20/10/2026, `PublicadorKafka.publicar` chamava `produce()` **sem chave** | **Corrigido em 21/10/2026**: chave `alert_id` (`test_chave_de_particao`) | Sem chave, mensagens do mesmo alerta iam para partições diferentes e podiam chegar fora de ordem. A ordem de `ods.s2.event` depende da chave usada pelo S2 |
 | Consumidor recebe CLOSED antes de ACKNOWLEDGED | Risco de integração | Se aplicar "a última que chegou", o alerta volta a ACKNOWLEDGED. Com `sequence` dá para perceber, porque o ACK tem `sequence` menor na mesma sessão |
-| Alerta criado por comando, sem `session_id` | **Comprovado** (pendência 5) | Sem sessão, a regra "`sequence` por `producer` + `session_id`" não se aplica; o consumidor não tem como ordenar pelo contrato |
+| Alerta criado por comando, sem `session_id` | **Comprovado**, pela regra proposta (pendência 5) | O `sequence` conta só pelo produtor (S3). Para ordenar as versões do mesmo alerta, o consumidor usa a chave de partição `alert_id` e o `sequence` |
 | O S3 reinicia | **Comprovado**: o contador fica em memória (`envelope.Sequencia`) | `sequence` volta a 0 na mesma sessão; o consumidor vê uma regressão e pode descartar atualizações legítimas. Resolvido junto com a persistência |
 | `published_at` igual em duas publicações | **Comprovado** (mesmo milissegundo no teste) | `published_at` não serve para desempatar |
 | ENDED chega antes do STARTED na entrada | **Comprovado** (`test_ended_antes_de_started`) | O S3 cria um alerta para uma violação que já terminou (pendências 6 e 18) |
 
 **[Recomendação]**, sem mudar o contrato:
-1. **B3:** publicar `ods.s3.alert` com chave `alert_id`, e `ods.s2.event` com chave `event_id`. O Kafka garante ordem dentro da partição, então todas as mensagens do mesmo alerta chegam em ordem. É configuração de transporte, sem campo novo. No S3, a mudança é passar `key=` no `produce()`, depois que B3 aprovar.
+1. **B3:** publicar `ods.s3.alert` com chave `alert_id`, e `ods.s2.event` com chave `event_id`. O Kafka garante ordem dentro da partição, então todas as mensagens do mesmo alerta chegam em ordem. É configuração de transporte, sem campo novo. No S3, isso já foi feito para `ods.s3.alert` (`PublicadorKafka.chave`); falta a confirmação do B3 e a decisão do S2.
 2. **Consumidores:** guardar, por `alert_id`, o último `(session_id, sequence)` aplicado e ignorar mensagens com `sequence` menor na mesma sessão.
 3. **Desempate secundário, que só vale enquanto a tabela de transições do VER-3 não mudar:** todas as transições permitidas sobem de estado, `CREATED < ACKNOWLEDGED < MUTED < CLOSED`, e CLOSED é final. Um consumidor nunca deve sair de CLOSED. Se o A5 aprovar "silenciar de novo" ou "MUTE vence e volta a ACKNOWLEDGED", esta regra deixa de valer.
 
@@ -96,7 +96,7 @@ Conferido no teste `TestRepublicacaoEOrdem.test_cada_republicacao_tem_message_id
 | D2 | CREATED e depois ACKNOWLEDGED do mesmo `alert_id`, com `message_id` diferentes | Atualiza para ACKNOWLEDGED, sem criar um segundo alerta |
 | D3 | CREATED → ACKNOWLEDGED → MUTED → CLOSED | Termina em CLOSED com `acknowledged_by`, `muted_until` e `closed_by` |
 | D4 | CLOSED (`sequence` 3) entregue antes de ACKNOWLEDGED (`sequence` 1) | Continua CLOSED |
-| D5 | Alerta criado por comando, sem `session_id` | Aceito pelo consumidor; ordenação a definir (pendência 5) |
+| D5 | Alerta criado por comando, sem `session_id` | Aceito pelo consumidor; ordenado por `sequence`, que conta só pelo produtor (pendência 5) |
 | D6 | O S3 reinicia entre duas publicações do mesmo alerta | Documentar o comportamento; hoje `sequence` volta a 0 (limitação conhecida) |
 | D7 | A consulta `alerts.query` logo depois de um CLOSE | O item consultado tem o mesmo `state` da última `ods.s3.alert` |
 | D8 | Alertas de duas sessões diferentes (replay com SEEK) | Cada alerta mantém a ordem pela própria sessão |

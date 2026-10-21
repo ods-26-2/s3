@@ -1,12 +1,12 @@
 # Matriz de contratos do S3 — Alertas e Notificações (VER-3)
 
-*Referência: Especificação de interfaces 1.0, arquitetura 6c ([`ods-6cfinal.html`](ods-6cfinal.html)). Estado do código em 20/10/2026: 208 testes passando e 1 falha esperada (`xfail`).*
+*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Estado do código em 21/10/2026: 212 testes passando.*
 
 Cada afirmação traz uma marca:
 
 - **[Oficial]**: está escrito na especificação (a seção vem entre parênteses).
 - **[Código]**: é o que o S3 faz hoje, conferido no código e nos testes.
-- **[Pendente]**: depende de decisão de outra equipe; o número remete à lista de pendências do [README.md](README.md).
+- **[Pendente]**: depende de decisão de outra equipe; o número remete à lista de pendências do [README.md](../README.md).
 - **[Recomendação]**: é proposta técnica do VER-3, ainda sem aprovação.
 
 ## 1. Situação de cada contrato
@@ -25,7 +25,7 @@ Nenhum contrato aparece como "Conforme" sem ressalva: nada foi testado no broker
 | `ods.s2.event` | evento (entrada) | EV-SERVIÇO | S2 | S3, S4, S5, A3, A5, A8 | `envelope.validar_envelope`, `contracts.EventoQualificado.de_mensagem`, `ingestion.IngestorEventos.receber` (exige `producer = S2`) | `service.AlertService.processar_evento_roteado` | `test_contracts`, `test_ingestion`, `test_envelope`, `test_contratos_saida` | Conforme nos testes locais. O que fazer em UPDATED/ENDED depende de decisão externa (pendência 6) |
 | ROUTING | artefato (entrada) | — | A3, A5, A7 (donos) | S3 | `routing.RoteadorAlertas.de_artefato`, `routing.ConfiguracaoRoteamento` | `routing.RoteadorAlertas.resolver`, `routing.renderizar` | `test_routing` | Conforme nos testes locais, só a carga por arquivo. `capture` depende de decisão externa (pendência 4); recarga por anúncio não implementada (pendência 13) |
 | `ods.s3.alert` (alerta de evento) | evento (saída) | EV-SERVIÇO | S3 | A3, A5, A7; opcionais A1, A2 | `alert.Alerta.validar` | `output.serializar_alerta`, `service.AlertService._publicar` | `test_output`, `test_publication`, `test_contratos_saida` | Conforme nos testes locais |
-| `ods.s3.alert` (alerta de comando) | evento (saída) | EV-SERVIÇO | S3 | idem | idem | idem | `test_contratos_saida.TestAlertaDeComando` (`xfail`) | **Incompatível**: sai sem `session_id`. Depende de decisão externa (pendência 5) |
+| `ods.s3.alert` (alerta de comando) | evento (saída) | EV-SERVIÇO | S3 | idem | idem | idem | `test_contratos_saida.TestAlertaDeComando` | **Depende de decisão externa**: sai sem `session_id`, pela regra proposta pelo VER-3 (pendência 5). Até B1 aprovar, o validador oficial pode rejeitar |
 | `ods.s3.alert.command` → `.reply` | comando | CMD → RPL | A1, A2, A3, A5, A7 | S3 | `commands.ProcessadorComandos.receber`, `_criar` | `service.AlertService.criar_alerta` | `test_commands`, `test_contratos_saida` | Conforme nos testes locais. A conferência do produtor depende de decisão externa (seção 3, pendência 19) |
 | `ods.s3.alert_action.command` → `.reply` | comando | CMD → RPL | backends de A3, A5, A7 | S3 | `commands.ProcessadorComandos.receber`, `_acao` | `service.AlertService._mudar_estado` | `test_commands`, `test_service`, `test_contratos_saida` | Conforme nos testes locais. Produtor (pendência 19), transições (pendência 7) e autorização (pendência 8) dependem de decisão externa |
 | `ods.s3.alerts.query` → `ods.s3.alerts.reply` | consulta | CMD → RPL | A1, A2, A3, A5, A7 | S3 | `commands.ProcessadorComandos._consultar` | `repository.AlertRepository.listar` | `test_commands`, `test_repository`, `test_contratos_saida` | Conforme nos testes locais. Produtor (pendência 19) e desempate da paginação (pendência 15) dependem de decisão externa |
@@ -117,6 +117,6 @@ Nenhum contrato aparece como "Conforme" sem ressalva: nada foi testado no broker
 
 ## 4. Decisões externas ligadas a esta matriz
 
-Os problemas completos, com equipe, pergunta e impacto, estão na seção "Pendências com outras equipes" do [README.md](README.md). A matriz depende principalmente das pendências 4, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17, 18 e 19.
+Os problemas completos, com equipe, pergunta e impacto, estão na seção "Pendências com outras equipes" do [README.md](../README.md). A matriz depende principalmente das pendências 4, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17, 18 e 19.
 
 O roteiro de integração está em [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).

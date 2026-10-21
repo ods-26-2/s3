@@ -307,11 +307,13 @@ class AlertService:
             return
 
         if alerta.session_id is None:
-            # Alerta criado por comando: não há sessão de
-            # origem, e EV-SERVIÇO exige session_id
-            # (pendência 5, com TRA-1 e TRA-2).
-            logger.warning(
-                "ods.s3.alert sem session_id (perfil EV-SERVIÇO): %s",
+            # Alerta criado por comando não tem sessão de origem:
+            # sai sem session_id e com sequence contado só pelo
+            # produtor. Regra proposta pelo VER-3 para o perfil
+            # EV-SERVIÇO, pendente de aprovação de B1/B2
+            # (pendência 5).
+            logger.info(
+                "ods.s3.alert de comando sem session_id: %s",
                 alerta.alerta_id,
             )
 

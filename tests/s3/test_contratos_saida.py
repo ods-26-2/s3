@@ -169,27 +169,49 @@ class TestAlertaDeComando(BaseS3):
         self.assertNotIn("artifact_version", mensagem)
         self.assertNotIn("source_id", mensagem)
 
-    def test_sem_session_id_registra_aviso(self):
-        """O S3 não inventa sessão; avisa no log (pendência 5)."""
+    def test_sem_session_id(self):
+        """O S3 não inventa sessão; só registra em log (pendência 5)."""
 
-        with self.assertLogs("s3.service", level="WARNING") as registro:
+        with self.assertLogs("s3.service", level="INFO") as registro:
             self.criar_por_comando()
 
         self.assertIn("sem session_id", registro.output[0])
         self.assertNotIn("session_id", self.publicador.mensagens[0])
 
-    @unittest.expectedFailure
-    def test_envelope_ev_servico_completo(self):
+    def test_envelope_ev_servico_com_sessao_opcional(self):
         """
-        Pendência 5 (TRA-1, TRA-2): EV-SERVIÇO exige session_id,
-        e um alerta criado por comando não tem sessão de origem.
-        Este teste passa a "passar inesperadamente" quando a
-        decisão for implementada; aí, retire o expectedFailure.
+        Regra proposta pelo VER-3 (pendência 5, aguardando B1/B2):
+        alerta criado por comando sai sem session_id, com sequence
+        e correlation_id = message_id do comando.
         """
+
+        dados, _ = self.criar_por_comando()
+        mensagem = self.publicador.mensagens[0]
+
+        contrato.mensagem_alerta(mensagem, origem="comando")
+        self.assertEqual(mensagem["correlation_id"], dados["message_id"])
+
+    def test_sequence_sem_sessao_por_produtor(self):
+        """Sem sessão, sequence conta só pelo produtor (S3)."""
 
         self.criar_por_comando()
+        self.criar_por_comando()
+        alerta_id = self.publicador.mensagens[0]["payload"]["alert_id"]
+        self.acao(alerta_id, "ACKNOWLEDGE")
 
-        contrato.mensagem_alerta(self.publicador.mensagens[0])
+        self.assertEqual(
+            [m["sequence"] for m in self.publicador.mensagens], [0, 1, 2]
+        )
+
+    def test_alerta_de_evento_continua_exigindo_sessao(self):
+        """A regra opcional não vale para alerta vindo do S2."""
+
+        self.evento_s2()
+        mensagem = dict(self.publicador.mensagens[0])
+        del mensagem["session_id"]
+
+        with self.assertRaises(contrato.ViolacaoContrato):
+            contrato.mensagem_alerta(mensagem)
 
     def test_event_id_opcional_informado(self):
         event_id = str(uuid4())

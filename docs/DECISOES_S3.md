@@ -32,5 +32,10 @@ Cada decisão tem uma origem:
 | 19 | Remetente fora da lista | O B3 bloqueia no broker; o S3 não confere o `producer` dos comandos | Aprovada | TRA-1 (B3): configurar as permissões |
 
 ## Fora dos contratos
-- **Persistência (SQLite):** decisão da squad VER-3. Sem ela, um reinício apaga o histórico e a deduplicação e zera o `sequence`.
+- **Persistência (SQLite) e fila de saída**, interna ao S3 e sem mudança de contrato (21/10/2026):
+  - **Problema:** um reinício apagava alertas, histórico e deduplicação e zerava o `sequence`. Uma falha ao publicar perdia a mensagem. Uma queda entre criar o alerta e guardar a reply do comando fazia a reentrega criar um segundo alerta.
+  - **Solução:** `SqliteAlertRepository`, com as mesmas regras do repositório em memória, e *transactional outbox*. A mudança de estado, a mensagem a publicar e o `message_id` recebido são gravados na mesma transação. Um despachante publica a fila na ordem, para na primeira falha e tenta de novo na partida e a cada volta do consumidor.
+  - **Garantia:** entrega pelo menos uma vez, com o mesmo `message_id` no reenvio. Consumidores descartam repetidos pelo `message_id` (seção 2, regra 7).
+  - **Confirmação de entrega do Kafka:** só conta o relatório `on_delivery` sem erro.
+  - **Contratos afetados:** nenhum. Só melhora o cumprimento da idempotência (regra 6), da deduplicação (regra 7) e do `sequence` (seção 3).
 - **Teste real com S2 e aplicações:** em 21/10/2026, eles ainda não conseguem mandar e receber mensagens. As confirmações desta tabela entram nesse teste. O roteiro está em [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).

@@ -54,16 +54,26 @@ class ConsumidorFalso:
 
 
 class ProdutorFalso:
-    def __init__(self, pendentes=0):
+    """Simula o confluent-kafka: o relatório de entrega sai no flush."""
+
+    def __init__(self, pendentes=0, erro_entrega=None):
         self.enviadas = []
         self.chaves = []
         self.pendentes = pendentes
+        self.erro_entrega = erro_entrega
+        self._relatorios = []
 
-    def produce(self, topic, value, key=None):
+    def produce(self, topic, value, key=None, on_delivery=None):
         self.enviadas.append((topic, value))
         self.chaves.append(key)
+        self._relatorios.append(on_delivery)
 
     def flush(self, tempo):
+        for relatorio in self._relatorios:
+            if relatorio is not None:
+                relatorio(self.erro_entrega, None)
+
+        self._relatorios = []
         return self.pendentes
 
 
@@ -206,6 +216,21 @@ class TestPublicadorKafka(unittest.TestCase):
         ))
 
         self.assertEqual(produtor.chaves, [alerta_id.encode("utf-8"), None])
+
+    def test_broker_recusa_a_mensagem(self):
+        """
+        flush() devolve 0, mas o relatório de entrega traz erro
+        (por exemplo, tópico inexistente): é falha, não sucesso.
+        """
+
+        publicador = PublicadorKafka(
+            produtor=ProdutorFalso(erro_entrega="UNKNOWN_TOPIC_OR_PART")
+        )
+
+        with self.assertRaises(ConnectionError) as contexto:
+            publicador.publicar(json.dumps({"schema": "ods.s3.alert"}))
+
+        self.assertIn("UNKNOWN_TOPIC_OR_PART", str(contexto.exception))
 
     def test_nao_entregue(self):
         publicador = PublicadorKafka(produtor=ProdutorFalso(pendentes=1))

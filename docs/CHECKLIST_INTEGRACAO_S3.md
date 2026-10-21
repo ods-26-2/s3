@@ -83,7 +83,7 @@ Conferido no teste `TestRepublicacaoEOrdem.test_cada_republicacao_tem_message_id
 | Até 20/10/2026, `PublicadorKafka.publicar` chamava `produce()` **sem chave** | **Corrigido em 21/10/2026**: chave `alert_id` (`test_chave_de_particao`) | Sem chave, mensagens do mesmo alerta iam para partições diferentes e podiam chegar fora de ordem. A ordem de `ods.s2.event` depende da chave usada pelo S2 |
 | Consumidor recebe CLOSED antes de ACKNOWLEDGED | Risco de integração | Se aplicar "a última que chegou", o alerta volta a ACKNOWLEDGED. Com `sequence` dá para perceber, porque o ACK tem `sequence` menor na mesma sessão |
 | Alerta criado por comando, sem `session_id` | **Comprovado**, pela regra proposta (pendência 5) | O `sequence` conta só pelo produtor (S3). Para ordenar as versões do mesmo alerta, o consumidor usa a chave de partição `alert_id` e o `sequence` |
-| O S3 reinicia | **Comprovado**: o contador fica em memória (`envelope.Sequencia`) | `sequence` volta a 0 na mesma sessão; o consumidor vê uma regressão e pode descartar atualizações legítimas. Resolvido junto com a persistência |
+| O S3 reinicia | **Corrigido em 21/10/2026**: o `sequence` fica no SQLite (`test_sequence_continua_depois_do_reinicio`) | O `sequence` continua de onde parou na mesma sessão |
 | `published_at` igual em duas publicações | **Comprovado** (mesmo milissegundo no teste) | `published_at` não serve para desempatar |
 | ENDED chega antes do STARTED na entrada | **Comprovado** (`test_ended_antes_de_started`) | O S3 cria um alerta para uma violação que já terminou (pendências 6 e 18) |
 
@@ -100,7 +100,7 @@ Conferido no teste `TestRepublicacaoEOrdem.test_cada_republicacao_tem_message_id
 | D3 | CREATED → ACKNOWLEDGED → MUTED → CLOSED | Termina em CLOSED com `acknowledged_by`, `muted_until` e `closed_by` |
 | D4 | CLOSED (`sequence` 3) entregue antes de ACKNOWLEDGED (`sequence` 1) | Continua CLOSED |
 | D5 | Alerta criado por comando, sem `session_id` | Aceito pelo consumidor; ordenado por `sequence`, que conta só pelo produtor (pendência 5) |
-| D6 | O S3 reinicia entre duas publicações do mesmo alerta | Documentar o comportamento; hoje `sequence` volta a 0 (limitação conhecida) |
+| D6 | O S3 reinicia entre duas publicações do mesmo alerta | O `sequence` continua crescendo; mensagens que não saíram antes da queda saem na partida, na ordem e com o mesmo `message_id` |
 | D7 | A consulta `alerts.query` logo depois de um CLOSE | O item consultado tem o mesmo `state` da última `ods.s3.alert` |
 | D8 | Alertas de duas sessões diferentes (replay com SEEK) | Cada alerta mantém a ordem pela própria sessão |
 

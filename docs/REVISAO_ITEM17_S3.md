@@ -42,7 +42,7 @@ Cada ponto traz a referência, a pergunta e uma proposta. Nenhuma das propostas 
 **Para:** TRA-1 (B3)
 
 - **Referência:** seção 3 (`sequence` por `producer` + `session_id`) e frente B3 ("entrega, confirmação, ordenação").
-- **Problema:** não há garantia de ordem entre as versões de um alerta. O `sequence` não ajuda em alerta sem `session_id` (ponto 1) e volta a 0 se o S3 reiniciar, enquanto não houver persistência.
+- **Problema:** não há garantia de ordem entre as versões de um alerta. O `sequence` não ajuda em alerta sem `session_id` (ponto 1). Desde 21/10/2026 ele não volta mais a 0 no reinício, porque fica no SQLite do S3.
 - **Pergunta:** o B3 adota a chave de partição por entidade, isto é, `alert_id` em `ods.s3.alert` e `event_id` em `ods.s2.event`?
 - **Situação:** o S3 já publica `ods.s3.alert` com chave `alert_id`. É só transporte e não altera a mensagem.
 

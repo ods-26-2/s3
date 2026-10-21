@@ -105,11 +105,16 @@ class AssinanteKafka:
         max_mensagens: int | None = None,
         tempo_limite_s: float | None = None,
         intervalo_poll_s: float = 1.0,
+        periodica: Callable[[], object] | None = None,
     ) -> int:
         """
         Laço de consumo com condição de parada: número de
         mensagens, tempo limite ou parar(). O broker de
         testes é pago e compartilhado (Guia do Kafka, 4.5).
+
+        periodica: chamada a cada volta do laço, também quando
+        não chega mensagem; o S3 a usa para reenviar a fila de
+        saída (outbox).
 
         Retorna quantas mensagens foram entregues.
         """
@@ -131,6 +136,12 @@ class AssinanteKafka:
 
         try:
             while not self._parar:
+                if periodica is not None:
+                    try:
+                        periodica()
+                    except Exception:
+                        logger.exception("falha na tarefa periódica")
+
                 if max_mensagens is not None and entregues >= max_mensagens:
                     break
 
@@ -210,18 +221,31 @@ class PublicadorKafka:
 
     def publicar(self, mensagem: str) -> None:
         """
-        Publica e espera a entrega ao broker; se não for
-        entregue no prazo, lança ConnectionError.
+        Publica e espera a confirmação do broker. Lança
+        ConnectionError se a mensagem não for entregue no
+        prazo ou se o broker a recusar.
+
+        flush() devolver 0 só quer dizer que a fila esvaziou:
+        uma mensagem recusada (tópico inexistente, falta de
+        permissão) também sai da fila. Por isso o resultado
+        vem do relatório de entrega (on_delivery).
         """
 
         dados = json.loads(mensagem)
         schema = dados["schema"]
         produtor = self._obter_produtor()
 
+        erros: list[object] = []
+
+        def ao_entregar(erro: object, _mensagem: object) -> None:
+            if erro is not None:
+                erros.append(erro)
+
         produtor.produce(
             topic=self.topico(schema),
             value=mensagem.encode("utf-8"),
             key=self.chave(dados),
+            on_delivery=ao_entregar,
         )
 
         pendentes = produtor.flush(self._tempo_entrega_s)
@@ -229,4 +253,9 @@ class PublicadorKafka:
         if pendentes:
             raise ConnectionError(
                 f"Mensagem não entregue ao broker ({schema})."
+            )
+
+        if erros:
+            raise ConnectionError(
+                f"Broker recusou a mensagem ({schema}): {erros[0]}"
             )

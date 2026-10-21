@@ -12,7 +12,7 @@ O S3 segue os contratos oficiais da **Especificação de interfaces 1.0 (arquite
 
 Também existe um adaptador Kafka que segue o Guia de Uso do Kafka da TRA-1.
 
-**Ainda não é uma integração operacional comprovada.** O adaptador Kafka nunca foi executado contra o broker real, a persistência é em memória e há decisões de contrato pendentes com outras equipes.
+**Ainda não é uma integração operacional comprovada.** O adaptador Kafka nunca foi executado contra o broker real, e as decisões provisórias de contrato serão confirmadas na fase de testes. Desde 21/10/2026, alertas, histórico, deduplicação e fila de saída ficam em SQLite.
 
 ## O que mudou nesta versão
 
@@ -63,7 +63,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado:** 233 testes e 111 subtestes passando. O alerta criado por comando segue a regra aprovada de `session_id` opcional (pendência 5), conferida em `tests/s3/contrato.py` com `origem="comando"`.
+**Resultado:** 357 testes e 155 subtestes passando. O alerta criado por comando segue a regra aprovada de `session_id` opcional (pendência 5), conferida em `tests/s3/contrato.py` com `origem="comando"`.
 
 O que os testes cobrem:
 - envelope e horários;
@@ -81,10 +81,7 @@ O que os testes **não** cobrem: broker real, persistência durável, envio real
 ## Pendências
 
 ### Internas (não dependem de outras equipes)
-1. **Persistência em banco.** Sugestão: SQLite. A squad ainda não decidiu. O mesmo banco também resolveria:
-   - a perda de mensagem quando a publicação falha (fila de saída);
-   - a deduplicação, que hoje se perde quando o processo reinicia;
-   - o contador `sequence`, que hoje volta a 0 quando o processo reinicia.
+1. ~~**Persistência em banco.**~~ Feita em 21/10/2026: SQLite com fila de saída (transactional outbox). Alertas, histórico, deduplicação e `sequence` sobrevivem ao reinício, e uma falha de publicação não perde mais a mensagem.
 2. **Teste manual curto contra o broker de testes,** combinado com a TRA-1.
 3. ~~**Organização do repositório.**~~ Feita em 21/10/2026: documentação em `docs/`, `.git copy/`, `LICENSE copy` e a especificação fora do git.
 4. **`Analise_Projeto_S3_ODS.pdf` está desatualizado** em relação a este documento.
@@ -108,6 +105,6 @@ Contratos, produtores e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_C
 - [x] Comandos registram autor, motivo e horário, e respondem com o contrato oficial.
 - [x] O encerramento segue transições documentadas.
 - [ ] ACK, MUTE e CLOSE só são aceitos de origem autorizada (pendência 8).
-- [ ] Alertas e histórico sobrevivem ao reinício (persistência).
+- [x] Alertas e histórico sobrevivem ao reinício (persistência SQLite, `test_persistencia.py`).
 - [ ] A saída publicada é consumida por um componente real, através do broker real.
 - [ ] Testes de integração ponta a ponta S2 → S3 → A5.

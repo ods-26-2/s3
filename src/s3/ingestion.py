@@ -58,12 +58,14 @@ class IngestorEventos:
         # 3. Construir e validar o evento.
         evento = EventoQualificado.de_mensagem(dados)
 
-        # 4. Encaminhar para o serviço.
-        alerta = self.service.processar_evento_roteado(evento)
-
-        # Só marca depois de processar: se falhar,
+        # 4. Encaminhar para o serviço. O alerta, a fila de saída e
+        # o message_id são gravados juntos: se falhar, nada fica, e
         # a mensagem pode ser entregue de novo.
-        repository.registrar_mensagem(message_id)
+        with repository.transacao():
+            alerta = self.service.processar_evento_roteado(evento)
+            repository.registrar_mensagem(message_id)
+
+        self.service.despachar_saida()
 
         return alerta
 
@@ -96,8 +98,11 @@ class IngestorClipes:
             return None
 
         clipe = DescritorClipe.de_mensagem(dados)
-        alerta = self.service.vincular_clipe(clipe)
 
-        repository.registrar_mensagem(message_id)
+        with repository.transacao():
+            alerta = self.service.vincular_clipe(clipe)
+            repository.registrar_mensagem(message_id)
+
+        self.service.despachar_saida()
 
         return alerta

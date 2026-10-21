@@ -1,12 +1,14 @@
 
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime
+from typing import Iterator
 
 from s3.alert import Alerta
 from s3.history import RegistroHistorico
 
-"armazenamento em memória"
-' Salva o alerta'
+"armazenamento"
+'Alertas, histórico, mensagens processadas e fila de saída'
 
 
 # O S4 grava clipe de todo ods.s2.event, inclusive dos que não
@@ -24,14 +26,19 @@ def _ate_milissegundo(horario: datetime) -> datetime:
 
 class AlertRepository:
     """
-    Repositório em memória para alertas, histórico
-    e mensagens já processadas.
+    Repositório de alertas, histórico, mensagens já
+    processadas, contadores de sequence e fila de saída.
 
-    Implementação provisória:
-    os dados são perdidos ao encerrar o processo.
+    Esta classe guarda tudo em memória (os dados se perdem
+    quando o processo termina) e serve aos testes. A versão
+    durável é SqliteAlertRepository, que herda as mesmas
+    regras e grava cada mudança pelos métodos _ao_*.
 
     Devolve sempre cópias: o estado só muda por
     atualizar(), que exige um registro de histórico.
+
+    Tudo o que muda dentro de transacao() é desfeito junto
+    se algo falhar; transações podem ser aninhadas.
     """
 
     def __init__(self) -> None:
@@ -47,6 +54,107 @@ class AlertRepository:
 
         # event_id → clip_id que chegou antes do alerta.
         self._clipes_pendentes: dict[str, str] = {}
+
+        # session_id (ou None) → próximo sequence a usar.
+        self._sequencias: dict[str | None, int] = {}
+
+        # Fila de saída (outbox): id → mensagem a publicar.
+        self._saida: dict[int, str] = {}
+        self._proximo_id_saida = 1
+
+        self._profundidade = 0
+
+    # ------------------------------------------------------------
+    # Transação
+
+    @contextmanager
+    def transacao(self) -> Iterator[None]:
+        """
+        Agrupa mudanças: ou todas valem, ou nenhuma. Pode ser
+        aninhada; cada nível desfaz só o que fez.
+        """
+
+        self._profundidade += 1
+        nivel = self._profundidade
+        copia = self._capturar()
+        self._abrir(nivel)
+
+        try:
+            yield
+        except BaseException:
+            self._desfazer(nivel, copia)
+            raise
+        else:
+            self._confirmar(nivel)
+        finally:
+            self._profundidade -= 1
+
+    def em_transacao(self) -> bool:
+        return self._profundidade > 0
+
+    def _estado(self) -> tuple:
+        return (
+            self._alertas,
+            self._eventos,
+            self._historicos,
+            self._mensagens,
+            self._clipes_pendentes,
+            self._sequencias,
+            self._saida,
+            self._proximo_id_saida,
+        )
+
+    def _capturar(self) -> object:
+        return deepcopy(self._estado())
+
+    def _desfazer(self, nivel: int, copia: object) -> None:
+        (
+            self._alertas,
+            self._eventos,
+            self._historicos,
+            self._mensagens,
+            self._clipes_pendentes,
+            self._sequencias,
+            self._saida,
+            self._proximo_id_saida,
+        ) = copia
+
+    def _abrir(self, nivel: int) -> None:
+        pass
+
+    def _confirmar(self, nivel: int) -> None:
+        pass
+
+    # ------------------------------------------------------------
+    # Ganchos de gravação: sem efeito em memória; a versão
+    # SQLite grava cada mudança.
+
+    def _ao_salvar(self, alerta: Alerta, indexado: bool, registro: RegistroHistorico) -> None:
+        pass
+
+    def _ao_atualizar(self, alerta: Alerta, registro: RegistroHistorico | None) -> None:
+        pass
+
+    def _ao_registrar_mensagem(self, message_id: str, resposta: dict | None) -> None:
+        pass
+
+    def _ao_guardar_clipe(self, evento_id: str, clip_id: str) -> None:
+        pass
+
+    def _ao_remover_clipe(self, evento_id: str) -> None:
+        pass
+
+    def _ao_sequencia(self, session_id: str | None, proximo: int) -> None:
+        pass
+
+    def _ao_enfileirar(self, id_saida: int, mensagem: str) -> None:
+        pass
+
+    def _ao_remover_saida(self, id_saida: int) -> None:
+        pass
+
+    # ------------------------------------------------------------
+    # Alertas
 
     def salvar(
         self,
@@ -87,12 +195,15 @@ class AlertRepository:
             registrado_em=alerta.criado_em,
         )
 
-        self._alertas[alerta.alerta_id] = deepcopy(alerta)
+        with self.transacao():
+            self._alertas[alerta.alerta_id] = deepcopy(alerta)
 
-        if indexar_evento:
-            self._eventos[alerta.evento_id] = alerta.alerta_id
+            if indexar_evento:
+                self._eventos[alerta.evento_id] = alerta.alerta_id
 
-        self._historicos[alerta.alerta_id] = [registro]
+            self._historicos[alerta.alerta_id] = [registro]
+
+            self._ao_salvar(deepcopy(alerta), indexar_evento, registro)
 
     def buscar_por_id(
         self,
@@ -170,8 +281,11 @@ class AlertRepository:
 
         alerta.validar()
 
-        historico.append(registro)
-        self._alertas[alerta.alerta_id] = deepcopy(alerta)
+        with self.transacao():
+            self._historicos[alerta.alerta_id].append(registro)
+            self._alertas[alerta.alerta_id] = deepcopy(alerta)
+
+            self._ao_atualizar(deepcopy(alerta), registro)
 
     def buscar_historico(
         self,
@@ -217,7 +331,8 @@ class AlertRepository:
                     or alerta.severidade == severidade
                 )
             ),
-            key=lambda alerta: alerta.criado_em,
+            # alerta_id desempata: a ordem é estável entre consultas.
+            key=lambda alerta: (alerta.criado_em, alerta.alerta_id),
         )
 
         if len(encontrados) <= limite:
@@ -258,7 +373,12 @@ class AlertRepository:
         atualizado.clip_id = clip_id
         atualizado.validar()
 
-        self._alertas[alerta_id] = atualizado
+        with self.transacao():
+            self._alertas[alerta_id] = atualizado
+            self._ao_atualizar(deepcopy(atualizado), None)
+
+    # ------------------------------------------------------------
+    # Clipes que chegaram antes do alerta
 
     def guardar_clipe_pendente(self, evento_id: str, clip_id: str) -> None:
         """Clipe que chegou antes do alerta; vale o primeiro."""
@@ -266,14 +386,28 @@ class AlertRepository:
         if evento_id in self._clipes_pendentes:
             return
 
-        self._clipes_pendentes[evento_id] = clip_id
+        with self.transacao():
+            self._clipes_pendentes[evento_id] = clip_id
+            self._ao_guardar_clipe(evento_id, clip_id)
 
-        while len(self._clipes_pendentes) > LIMITE_CLIPES_PENDENTES:
-            # dict guarda a ordem de inserção: sai o mais antigo.
-            del self._clipes_pendentes[next(iter(self._clipes_pendentes))]
+            while len(self._clipes_pendentes) > LIMITE_CLIPES_PENDENTES:
+                # dict guarda a ordem de inserção: sai o mais antigo.
+                antigo = next(iter(self._clipes_pendentes))
+                del self._clipes_pendentes[antigo]
+                self._ao_remover_clipe(antigo)
 
     def retirar_clipe_pendente(self, evento_id: str) -> str | None:
-        return self._clipes_pendentes.pop(evento_id, None)
+        if evento_id not in self._clipes_pendentes:
+            return None
+
+        with self.transacao():
+            clip_id = self._clipes_pendentes.pop(evento_id)
+            self._ao_remover_clipe(evento_id)
+
+        return clip_id
+
+    # ------------------------------------------------------------
+    # Mensagens recebidas (deduplicação e idempotência)
 
     def mensagem_processada(self, message_id: str) -> bool:
         return message_id in self._mensagens
@@ -292,4 +426,51 @@ class AlertRepository:
         chegar de novo (idempotência pelo message_id).
         """
 
-        self._mensagens[message_id] = deepcopy(resposta)
+        with self.transacao():
+            self._mensagens[message_id] = deepcopy(resposta)
+            self._ao_registrar_mensagem(message_id, deepcopy(resposta))
+
+    # ------------------------------------------------------------
+    # sequence e fila de saída (outbox)
+
+    def proximo_sequence(self, session_id: str | None) -> int:
+        """
+        Próximo sequence do S3 na sessão (seção 3: contador por
+        producer + session_id, a partir de 0). Sem sessão, conta
+        só pelo produtor. Persistido: não volta a 0 no reinício.
+        """
+
+        with self.transacao():
+            valor = self._sequencias.get(session_id, 0)
+            self._sequencias[session_id] = valor + 1
+            self._ao_sequencia(session_id, valor + 1)
+
+        return valor
+
+    def enfileirar_saida(self, mensagem: str) -> int:
+        """
+        Guarda uma mensagem a publicar. Chamada na mesma
+        transação da mudança que a gerou: ou as duas valem,
+        ou nenhuma.
+        """
+
+        with self.transacao():
+            id_saida = self._proximo_id_saida
+            self._proximo_id_saida += 1
+            self._saida[id_saida] = mensagem
+            self._ao_enfileirar(id_saida, mensagem)
+
+        return id_saida
+
+    def pendentes_saida(self) -> list[tuple[int, str]]:
+        """Mensagens ainda não publicadas, na ordem em que entraram."""
+
+        return sorted(self._saida.items())
+
+    def marcar_enviada(self, id_saida: int) -> None:
+        if id_saida not in self._saida:
+            return
+
+        with self.transacao():
+            del self._saida[id_saida]
+            self._ao_remover_saida(id_saida)

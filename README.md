@@ -43,7 +43,7 @@ Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 - Transição fora da tabela → reply `ERROR` com `INVALID_TRANSITION`, sem alterar nada.
 - Cada ação gera um registro de histórico imutável, com autor (`actor`, no formato `user:<id>`), motivo (`reason`) e horário com fuso.
 - O alerta publicado mostra quem reconheceu e encerrou e até quando está silenciado. O contrato não tem `muted_by`: o autor do MUTE fica só no histórico interno.
-- A idempotência dos comandos depende do repositório: com a persistência em memória, ela se perde quando o processo reinicia.
+- A idempotência dos comandos sobrevive ao reinício: a reply de cada `message_id` fica guardada no SQLite.
 - O alerta publicado traz `acknowledged_by/at`, `muted_until` e `closed_by/at`.
 
 ## Regras de mensagens
@@ -77,7 +77,8 @@ Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 | `src/s3/routing.py` | Artefato ROUTING, rotas e preenchimento de `title`/`message` |
 | `src/s3/alert.py` | Modelo `Alerta` e validação de destinatários, canais e severidade |
 | `src/s3/history.py` | `RegistroHistorico` imutável |
-| `src/s3/repository.py` | Alertas, histórico e `message_id` processados (em memória) |
+| `src/s3/repository.py` | Alertas, histórico, `message_id` processados, `sequence` e fila de saída, com transações (versão em memória, usada nos testes) |
+| `src/s3/repository_sqlite.py` | Mesmas regras, gravadas em SQLite: sobrevive ao reinício (usada pelo `python -m s3`) |
 | `src/s3/service.py` | Criação, deduplicação, transições e consulta |
 | `src/s3/output.py` | Monta `ods.s3.alert` |
 | `src/s3/ingestion.py` | Recebe `ods.s2.event` e `ods.s4.clip` |
@@ -107,7 +108,7 @@ python -m pytest tests/s3 -q            # ou: python -m unittest discover -s tes
 python demo_s3.py
 ```
 
-Os testes **não acessam o broker real**: usam assinante, publicador e cliente Kafka falsos. O resultado esperado é `233 passed`.
+Os testes **não acessam o broker real**: usam assinante, publicador e cliente Kafka falsos. O resultado esperado é `357 passed`. Os testes do repositório, do serviço, dos comandos, dos contratos e dos clipes rodam duas vezes: com o repositório em memória e com o SQLite (`test_persistencia.py`).
 
 ## Executar com o Kafka
 
@@ -115,12 +116,15 @@ Os testes **não acessam o broker real**: usam assinante, publicador e cliente K
 $env:PYTHONPATH = "src"
 $env:S3_KAFKA_BOOTSTRAP = "<host:porta do broker>"   # ver Guia do Kafka da TRA-1
 $env:S3_KAFKA_GROUP_ID = "S3-alertas"                # opcional; este é o padrão
-python -m s3 --routing jsons/routing_a5.json --versao-routing routing-a5-1 --tempo-limite 60
+python -m s3 --routing jsons/routing_a5.json --versao-routing routing-a5-1 --banco s3.sqlite3 --tempo-limite 60
 
 # Build sem S2 (como a do A7): sem --routing, só comandos e consultas
 python -m s3 --tempo-limite 60
 ```
 
+- **Persistência:** alertas, histórico, `message_id` processados, `sequence` e a fila de saída ficam no SQLite de `--banco` (padrão: `s3.sqlite3`, fora do git).
+- **Fila de saída (transactional outbox):** cada mudança de alerta e a mensagem `ods.s3.alert` correspondente são gravadas na mesma transação. A publicação vem depois: na hora, na partida seguinte e a cada volta do laço do consumidor. Se o Kafka falhar, a mensagem espera na fila, na ordem. A entrega é **pelo menos uma vez**: uma queda entre publicar e marcar como enviada reenvia a mesma mensagem, com o mesmo `message_id`, que o consumidor descarta.
+- **Confirmação de entrega:** a publicação só conta como feita quando o relatório de entrega do Kafka (`on_delivery`) vem sem erro. Esvaziar a fila (`flush`) não basta.
 - O endereço do broker **não fica no código**. O broker de testes está na nuvem e vai mudar para um local.
 - Para cada mensagem:
   - o commit do offset só acontece depois do processamento;
@@ -131,8 +135,8 @@ python -m s3 --tempo-limite 60
 
 ## Limitações conhecidas
 
-- **Persistência em memória.** Alertas, histórico e `message_id` processados se perdem quando o processo reinicia. A escolha do banco é decisão da squad: cada build tem o seu, e o P3 opera o armazenamento.
-- **Falha ao publicar.** Se o barramento falhar ao publicar `ods.s3.alert`, o alerta já ficou salvo, a falha vai para o log e a mensagem se perde. A reply do comando sai normalmente, de modo que a reentrega não cria um segundo alerta. A solução (fila de saída no banco) depende da persistência.
+- **Persistência.** Um processo por arquivo de banco. A leitura é feita da memória, carregada do banco na partida: serve para o volume de uma build, mas o histórico inteiro fica em memória.
+- **Respostas dos comandos** não passam pela fila de saída: se a publicação da reply falhar, o offset não é confirmado, o comando volta e recebe a mesma reply guardada.
 - **Paginação.** `next_from_at` tem milissegundos. A página termina antes do milissegundo do primeiro alerta que ficou de fora, para não repetir alertas. Se houver mais de `limit` alertas no mesmo milissegundo, a paginação não avança (pendência 15).
 - **Alerta criado por comando sem `session_id`.** Regra aprovada em 21/10/2026 (pendência 5), mas ainda não escrita na especificação nem no validador de B1. `captured_at` recebe o horário de criação, porque não há sinal de origem.
 - **`clip_id`.** Vale o primeiro clipe do `event_id`. Se o clipe chegar antes do alerta, fica guardado e entra na criação; até 1000 clipes pendentes, porque o S4 grava todo evento, inclusive os que não viram alerta. Ao vincular, o alerta é republicado com o mesmo `state` (pendência 4).

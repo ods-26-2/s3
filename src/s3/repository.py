@@ -9,6 +9,11 @@ from s3.history import RegistroHistorico
 ' Salva o alerta'
 
 
+# O S4 grava clipe de todo ods.s2.event, inclusive dos que não
+# viram alerta: os pendentes mais antigos são descartados.
+LIMITE_CLIPES_PENDENTES = 1000
+
+
 def _ate_milissegundo(horario: datetime) -> datetime:
     """Descarta os microssegundos, como formatar_horario."""
 
@@ -39,6 +44,9 @@ class AlertRepository:
 
         # message_id → reply já enviada (None em eventos).
         self._mensagens: dict[str, dict | None] = {}
+
+        # event_id → clip_id que chegou antes do alerta.
+        self._clipes_pendentes: dict[str, str] = {}
 
     def salvar(
         self,
@@ -234,6 +242,38 @@ class AlertRepository:
             pagina = encontrados[:limite]
 
         return [deepcopy(alerta) for alerta in pagina], proximo
+
+    def definir_clipe(self, alerta_id: str, clip_id: str) -> None:
+        """
+        Vincula a evidência do S4 ao alerta. Não é ação humana
+        nem muda o estado, por isso não entra no histórico.
+        """
+
+        alerta = self._alertas.get(alerta_id)
+
+        if alerta is None:
+            raise ValueError("Alerta não encontrado.")
+
+        atualizado = deepcopy(alerta)
+        atualizado.clip_id = clip_id
+        atualizado.validar()
+
+        self._alertas[alerta_id] = atualizado
+
+    def guardar_clipe_pendente(self, evento_id: str, clip_id: str) -> None:
+        """Clipe que chegou antes do alerta; vale o primeiro."""
+
+        if evento_id in self._clipes_pendentes:
+            return
+
+        self._clipes_pendentes[evento_id] = clip_id
+
+        while len(self._clipes_pendentes) > LIMITE_CLIPES_PENDENTES:
+            # dict guarda a ordem de inserção: sai o mais antigo.
+            del self._clipes_pendentes[next(iter(self._clipes_pendentes))]
+
+    def retirar_clipe_pendente(self, evento_id: str) -> str | None:
+        return self._clipes_pendentes.pop(evento_id, None)
 
     def mensagem_processada(self, message_id: str) -> bool:
         return message_id in self._mensagens

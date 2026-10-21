@@ -1,6 +1,6 @@
 # Matriz de contratos do S3 — Alertas e Notificações (VER-3)
 
-*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Estado do código em 21/10/2026: 212 testes passando.*
+*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Estado do código em 21/10/2026: 231 testes passando. Decisões de 21/10/2026 incluídas: `session_id` opcional em alerta de comando, S3 consumindo `ods.s4.clip` e bloqueio de produtor pelo B3.*
 
 Cada afirmação traz uma marca:
 
@@ -23,15 +23,15 @@ Nenhum contrato aparece como "Conforme" sem ressalva: nada foi testado no broker
 | Contrato | Tipo | Perfil | Envia / produz [Oficial] | Atende / consome [Oficial] | Valida | Processa | Testes | Situação |
 |---|---|---|---|---|---|---|---|---|
 | `ods.s2.event` | evento (entrada) | EV-SERVIÇO | S2 | S3, S4, S5, A3, A5, A8 | `envelope.validar_envelope`, `contracts.EventoQualificado.de_mensagem`, `ingestion.IngestorEventos.receber` (exige `producer = S2`) | `service.AlertService.processar_evento_roteado` | `test_contracts`, `test_ingestion`, `test_envelope`, `test_contratos_saida` | Conforme nos testes locais. O que fazer em UPDATED/ENDED depende de decisão externa (pendência 6) |
-| ROUTING | artefato (entrada) | — | A3, A5, A7 (donos) | S3 | `routing.RoteadorAlertas.de_artefato`, `routing.ConfiguracaoRoteamento` | `routing.RoteadorAlertas.resolver`, `routing.renderizar` | `test_routing` | Conforme nos testes locais, só a carga por arquivo. `capture` depende de decisão externa (pendência 4); recarga por anúncio não implementada (pendência 13) |
+| ROUTING | artefato (entrada) | — | A3, A5, A7 (donos) | S3 | `routing.RoteadorAlertas.de_artefato`, `routing.ConfiguracaoRoteamento` | `routing.RoteadorAlertas.resolver`, `routing.renderizar` | `test_routing`, `test_clipes` | Conforme nos testes locais, só a carga por arquivo. `capture` atendido desde 21/10/2026 (pendência 4); recarga por anúncio não implementada (pendência 13) |
 | `ods.s3.alert` (alerta de evento) | evento (saída) | EV-SERVIÇO | S3 | A3, A5, A7; opcionais A1, A2 | `alert.Alerta.validar` | `output.serializar_alerta`, `service.AlertService._publicar` | `test_output`, `test_publication`, `test_contratos_saida` | Conforme nos testes locais |
-| `ods.s3.alert` (alerta de comando) | evento (saída) | EV-SERVIÇO | S3 | idem | idem | idem | `test_contratos_saida.TestAlertaDeComando` | **Depende de decisão externa**: sai sem `session_id`, pela regra proposta pelo VER-3 (pendência 5). Até B1 aprovar, o validador oficial pode rejeitar |
-| `ods.s3.alert.command` → `.reply` | comando | CMD → RPL | A1, A2, A3, A5, A7 | S3 | `commands.ProcessadorComandos.receber`, `_criar` | `service.AlertService.criar_alerta` | `test_commands`, `test_contratos_saida` | Conforme nos testes locais. A conferência do produtor depende de decisão externa (seção 3, pendência 19) |
-| `ods.s3.alert_action.command` → `.reply` | comando | CMD → RPL | backends de A3, A5, A7 | S3 | `commands.ProcessadorComandos.receber`, `_acao` | `service.AlertService._mudar_estado` | `test_commands`, `test_service`, `test_contratos_saida` | Conforme nos testes locais. Produtor (pendência 19), transições (pendência 7) e autorização (pendência 8) dependem de decisão externa |
-| `ods.s3.alerts.query` → `ods.s3.alerts.reply` | consulta | CMD → RPL | A1, A2, A3, A5, A7 | S3 | `commands.ProcessadorComandos._consultar` | `repository.AlertRepository.listar` | `test_commands`, `test_repository`, `test_contratos_saida` | Conforme nos testes locais. Produtor (pendência 19) e desempate da paginação (pendência 15) dependem de decisão externa |
+| `ods.s3.alert` (alerta de comando) | evento (saída) | EV-SERVIÇO | S3 | idem | idem | idem | `test_contratos_saida.TestAlertaDeComando` | Conforme nos testes locais: sai sem `session_id`, pela exceção aprovada em 21/10/2026 (pendência 5). Falta a exceção entrar na especificação e no validador de B1 |
+| `ods.s3.alert.command` → `.reply` | comando | CMD → RPL | A1, A2, A3, A5, A7 | S3 | `commands.ProcessadorComandos.receber`, `_criar` | `service.AlertService.criar_alerta` | `test_commands`, `test_contratos_saida` | Conforme nos testes locais. O remetente é bloqueado pelo B3 no broker (pendência 19) |
+| `ods.s3.alert_action.command` → `.reply` | comando | CMD → RPL | backends de A3, A5, A7 | S3 | `commands.ProcessadorComandos.receber`, `_acao` | `service.AlertService._mudar_estado` | `test_commands`, `test_service`, `test_contratos_saida` | Conforme nos testes locais. Remetente bloqueado pelo B3 (pendência 19); transições (pendência 7) e autorização (pendência 8) dependem de decisão externa |
+| `ods.s3.alerts.query` → `ods.s3.alerts.reply` | consulta | CMD → RPL | A1, A2, A3, A5, A7 | S3 | `commands.ProcessadorComandos._consultar` | `repository.AlertRepository.listar` | `test_commands`, `test_repository`, `test_contratos_saida` | Conforme nos testes locais. Remetente bloqueado pelo B3 (pendência 19); o desempate da paginação (pendência 15) depende de decisão externa |
 | `ods.session.started` | evento | EV-SINAL | P4, P5, P6 | I2, S1, S2, S4, S5, B4 ("e todo componente com estado") | — | — | — | Não implementado; a especificação se contradiz (pendência 12) |
 | `ods.artifact.published` | evento | EV-SERVIÇO | dono do artefato | "consumidores do artefato" | — | — | — | Não implementado; não há contrato para buscar o conteúdo pela `uri` (pendência 13) |
-| `ods.s4.clip` | evento | EV-SERVIÇO | S4 | A1–A6, A8; opcional A7. **Não inclui o S3** | — | — | — | Não implementado, por ser lista fechada; por isso `capture` não tem como ser atendido (pendência 4) |
+| `ods.s4.clip` | evento (entrada) | EV-SERVIÇO | S4 | A1–A6, A8; opcional A7; **o S3 passou a consumir em 21/10/2026** (falta constar na seção 9) | `envelope.validar_envelope`, `contracts.DescritorClipe.de_mensagem`, `ingestion.IngestorClipes.receber` (exige `producer = S4`) | `service.AlertService.vincular_clipe` | `test_clipes` | Conforme nos testes locais. A republicação do alerta ao vincular o clipe é decisão do VER-3 (pendência 4) |
 
 ## 2. Campos, respostas e erros
 
@@ -113,7 +113,7 @@ Nenhum contrato aparece como "Conforme" sem ressalva: nada foi testado no broker
 | C | Descartar sem reply e registrar em log | Simples | **Viola a seção 2, regra 6** (todo comando recebe reply) |
 | D | ACL no broker: só as credenciais de A3, A5 e A7 escrevem em `alert_action.command` | É a única que autentica de verdade; a mensagem nem chega ao S3 | Depende de B3 e da configuração da build (P3) |
 
-**Proposta:** a opção **D** como controle de segurança e a **A** como defesa no S3, para quando a ACL não estiver configurada. Até haver decisão, o S3 continua aceitando, e a divergência fica registrada aqui. Num ambiente de produção, cada build só tem a própria aplicação; na build do A5, por exemplo, só o A5 deveria enviar comandos ao S3. Restringir o S3 ao `producer` da própria build seria configuração da build, não regra do contrato.
+**Decisão de 21/10/2026: opção D, "o B3 resolve".** O bloqueio fica no broker, e o S3 não ganha código de erro novo. Antes da decisão, a proposta era D com A como defesa no S3. Até o B3 configurar as ACLs, o S3 continua aceitando, e a divergência fica registrada aqui. Num ambiente de produção, cada build só tem a própria aplicação; na build do A5, por exemplo, só o A5 deveria enviar comandos ao S3. Restringir o S3 ao `producer` da própria build seria configuração da build, não regra do contrato.
 
 ## 4. Decisões externas ligadas a esta matriz
 

@@ -20,6 +20,7 @@ GRUPO_PADRAO = "S3-alertas"
 # com o TRA-1. Para trocar, passe o mapa schema → tópico.
 TOPICOS_ENTRADA = (
     "ods.s2.event",
+    "ods.s4.clip",
     "ods.s3.alert.command",
     "ods.s3.alert_action.command",
     "ods.s3.alerts.query",

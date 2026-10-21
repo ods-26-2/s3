@@ -9,6 +9,7 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 ## 1. Verificações por equipe
 
 ### S2 (VER-6)
+- [ ] **[Pendente]** Em 21/10/2026 o S2 e as aplicações **ainda não conseguem** mandar e receber mensagens reais. Até lá, o teste é local, com os JSONs de `jsons/`.
 - [ ] **[Oficial]** O S2 publica `ods.s2.event` com envelope EV-SERVIÇO completo e `producer = "S2"`; o S3 rejeita qualquer outro produtor.
 - [ ] **[Oficial]** `event_id` é UUID v4 e é o mesmo em STARTED, UPDATED e ENDED.
 - [ ] **[Oficial]** Os campos obrigatórios estão presentes, incluindo `duration_ms` inteiro e `source_ids`.
@@ -29,18 +30,18 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 - [ ] **[Pendente 8]** Cada backend decide quem (`actor`) pode reconhecer, silenciar e encerrar.
 - [ ] **[Pendente 10]** Quem toca o som e envia o push. O S3 só publica `channels`.
 - [ ] **[Pendente 14]** **A7:** para que serve o ROUTING do A7, se a build dele não tem o S2?
-- [ ] **[Pendente 4]** **A5:** sem `clip_id` no alerta, o front busca o clipe pelo `event_id` em `ods.s4.clip`.
+- [ ] **[Decidido 4]** **A5:** o `clip_id` agora vem no alerta quando a rota tem `capture: true`. Ele pode chegar numa republicação do alerta, com o mesmo `state`, alguns segundos depois da criação.
 
 ### B1 (TRA-1) — contratos
 - [ ] **[Oficial]** Passar as mensagens publicadas pelo S3 (`ods.s3.alert` e as três replies) no validador de B1, assim que ele for publicado. Hoje usamos `tests/s3/contrato.py`, escrito a partir da especificação.
-- [ ] **[Pendente 5]** Aprovar a regra proposta pelo VER-3, já adotada no S3: `session_id` opcional só em `ods.s3.alert` criado por comando, com `sequence` por produtor e `correlation_id` = `message_id` do comando. Sem aprovação, o validador rejeita essas mensagens.
+- [x] **[Decidido 5]** `session_id` opcional em alerta criado por comando: aprovado em 21/10/2026. Falta escrever a exceção na especificação e no validador de B1.
 - [ ] **[Pendente 9]** Aprovar ou substituir os códigos provisórios `INVALID_PAYLOAD` e `INVALID_MESSAGE`.
 - [ ] **[Pendente 17]** Esclarecer a regra 7 da seção 2: o que significa "`alert_id` é chave de deduplicação".
-- [ ] **[Pendente 19]** Decidir a resposta a um produtor fora da lista do contrato.
+- [x] **[Decidido 19]** Produtor fora da lista: quem bloqueia é o B3, no broker (21/10/2026).
 - [ ] **[Pendente 15, 16]** Paginação da consulta e pontos não definidos.
 
 ### B2 (TRA-2) — tempo e sessão
-- [ ] **[Pendente 5]** Que sessão um alerta criado por comando deve citar.
+- [x] **[Decidido 5]** Alerta criado por comando não cita sessão (21/10/2026).
 - [ ] **[Pendente 12]** O S3 consome `ods.session.started`? Se consumir, alertas abertos não podem ser zerados num SEEK de replay.
 - [ ] **[Recomendação]** Conferir a latência (`published_at` − `captured_at`) dos alertas de evento num cenário gravado de P6.
 
@@ -48,7 +49,7 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 - [ ] **[Pendente 1]** Confirmar os nomes dos tópicos. A especificação diz "um tópico por schema"; o S3 usa o nome do schema como tópico.
 - [ ] **[Pendente 3]** Confirmar o tópico das replies (`ods.s3.<x>.reply`) e o filtro por `correlation_id`.
 - [ ] **[Pendente 18]** Garantia de ordem por alerta: chave de partição `alert_id` em `ods.s3.alert` e `event_id` em `ods.s2.event`. Desde 21/10/2026, o `PublicadorKafka` usa o `alert_id` como chave em `ods.s3.alert`; falta o B3 confirmar, e o S2 decidir a chave de `ods.s2.event`.
-- [ ] **[Pendente 19]** ACL por tópico e credencial por aplicação, para que só A3, A5 e A7 escrevam em `alert_action.command`.
+- [ ] **[Decidido 19, falta executar]** ACL por tópico e credencial por aplicação, para que só A3, A5 e A7 escrevam em `alert_action.command`.
 - [ ] **[Recomendação]** Teste curto no broker de testes: um `ods.s2.event` de exemplo, o alerta, um ACK, um CLOSE e uma consulta, com `--tempo-limite`.
 
 ## 2. Deduplicação e atualização de estado

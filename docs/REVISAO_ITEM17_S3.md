@@ -3,13 +3,15 @@
 **Para:** TRA-1 (B1 e B3) e TRA-2 (B2). **Cópia:** VER-4 (revisor do item 17), VER-6 (S2) e MOD-2 (S4).
 **De:** VER-3, componente S3 — Alertas e Notificações.
 
+> **Atualização de 21/10/2026:** os pontos 1, 4 e 6 foram respondidos, e o S3 já segue as respostas. Falta escrever as três decisões na especificação. O teste real com S2 e aplicações ficou para depois, porque eles ainda não conseguem mandar e receber mensagens. Continuam abertos os pontos 2, 3, 5, 7 e 8.
+
 O item 17 da seção 10 ("S3 cria alertas pelo artefato ROUTING e por comando; `event_id` opcional; ações e histórico por mensagem") é implementável, com as ressalvas abaixo. Comparamos o S3 campo a campo com a especificação. O código segue os contratos, menos no ponto 1, que não tem como ser resolvido sem decisão de vocês.
 
 Cada ponto traz a referência, a pergunta e uma proposta. Nenhuma das propostas foi implementada como regra de contrato.
 
 ---
 
-## 1. `session_id` em alerta criado por comando — **bloqueia A1, A2 e A7**
+## 1. `session_id` em alerta criado por comando — **respondido em 21/10/2026: pode ficar opcional**
 **Para:** TRA-2 (B2) e TRA-1 (B1)
 
 - **Referência:** a seção 3 diz que o perfil EV-SERVIÇO exige `captured_at`, `session_id` e `sequence`, e que o perfil CMD vem "sem campos de sinal". A seção 7 diz que `ods.s3.alert` é EV-SERVIÇO e é criado também a partir de `ods.s3.alert.command`, que é CMD.
@@ -44,7 +46,7 @@ Cada ponto traz a referência, a pergunta e uma proposta. Nenhuma das propostas 
 - **Pergunta:** o B3 adota a chave de partição por entidade, isto é, `alert_id` em `ods.s3.alert` e `event_id` em `ods.s2.event`?
 - **Situação:** o S3 já publica `ods.s3.alert` com chave `alert_id`. É só transporte e não altera a mensagem.
 
-## 4. Remetente fora da lista do contrato
+## 4. Remetente fora da lista do contrato — **respondido em 21/10/2026: o B3 resolve**
 **Para:** TRA-1 (B1 e B3)
 
 - **Referência:** a seção 9 lista quem envia cada comando, e `alert_action.command` vem só de A3, A5 e A7. A seção 2, regra 6, diz que todo comando recebe reply.
@@ -58,7 +60,7 @@ Cada ponto traz a referência, a pergunta e uma proposta. Nenhuma das propostas 
 - **Referência:** a seção 7 diz que a camada 3 "reinicia esse estado a cada `ods.session.started`". O contrato fala em "todo componente com estado". Mas a lista da seção 9 não inclui o S3, e o glossário diz "todo componente com estado zera".
 - **Pergunta:** o S3 deve consumir `ods.session.started`? Se consumir, alertas abertos e o histórico **não** podem ser zerados num SEEK de replay, porque são auditoria. A regra vale para o S3?
 
-## 6. `capture: true` e o `clip_id`
+## 6. `capture: true` e o `clip_id` — **respondido em 21/10/2026: o S3 recebe `ods.s4.clip`**
 **Para:** TRA-1 e MOD-2 (S4)
 
 - **Referência:** a seção 8 diz que, no ROUTING, `capture` serve para "vincular o `clip_id` que S4 gerou para o `event_id`". A seção 9 diz que o S3 consome só S2, e `ods.s4.clip` não lista o S3.

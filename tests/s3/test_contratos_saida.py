@@ -180,7 +180,7 @@ class TestAlertaDeComando(BaseS3):
 
     def test_envelope_ev_servico_com_sessao_opcional(self):
         """
-        Regra proposta pelo VER-3 (pendência 5, aguardando B1/B2):
+        Regra aprovada em 21/10/2026 (pendência 5):
         alerta criado por comando sai sem session_id, com sequence
         e correlation_id = message_id do comando.
         """

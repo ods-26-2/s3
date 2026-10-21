@@ -63,7 +63,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado:** 212 testes e 98 subtestes passando. O alerta criado por comando segue a regra proposta de `session_id` opcional (pendência 5), conferida em `tests/s3/contrato.py` com `origem="comando"`.
+**Resultado:** 231 testes e 111 subtestes passando. O alerta criado por comando segue a regra aprovada de `session_id` opcional (pendência 5), conferida em `tests/s3/contrato.py` com `origem="comando"`.
 
 O que os testes cobrem:
 - envelope e horários;
@@ -94,7 +94,7 @@ As 19 perguntas estão na seção "Pendências com outras equipes" do [README.md
 - o nome dos tópicos (TRA-1);
 - como o S3 obtém o `clip_id` (TRA-1 e MOD-2);
 - o comportamento nas fases `UPDATED` e `ENDED` (VER-6 e A5);
-- aprovação da regra de `session_id` opcional em alertas criados por comando, já adotada no S3 (TRA-1 e TRA-2);
+- escrever na especificação as decisões de 21/10/2026: `session_id` opcional em alerta de comando, S3 consumindo `ods.s4.clip` e bloqueio de produtor pelo B3 (TRA-1);
 - deduplicação por `alert_id` e ordem de entrega, que afetam todos os consumidores do S3 (TRA-1; pendências 17 e 18).
 
 Contratos, produtores e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_CONTRATOS_S3.md). Roteiro de integração: [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).

@@ -7,9 +7,9 @@ independentes das validações internas: se as duas concordarem
 por engano, este arquivo ainda acusa. Não substitui o validador
 de B1, que ainda não foi publicado.
 
-Uma regra não é da especificação: session_id opcional em
-ods.s3.alert criado por comando (proposta do VER-3, pendência 5,
-aguardando B1/B2). Ela só vale com origem="comando".
+Uma regra ainda não está escrita na especificação: session_id
+opcional em ods.s3.alert criado por comando (pendência 5, aprovada
+em 21/10/2026). Ela só vale com origem="comando".
 """
 
 import re
@@ -85,7 +85,7 @@ def envelope(
     Confere o envelope pelo perfil (EV-SERVIÇO, CMD ou RPL)
     e devolve o payload.
 
-    sessao_opcional: regra proposta para alerta criado por
+    sessao_opcional: regra aprovada para alerta criado por
     comando (EV-SERVIÇO sem session_id).
     """
 
@@ -262,7 +262,7 @@ def mensagem_alerta(mensagem: dict, origem: str = "evento") -> dict:
     origem="evento": alerta de ods.s2.event; session_id obrigatório
     e correlation_id = event_id (seção 7).
     origem="comando": alerta de ods.s3.alert.command; session_id
-    opcional (regra proposta, pendência 5).
+    opcional (regra aprovada em 21/10/2026, pendência 5).
     """
 
     if origem not in ("evento", "comando"):

@@ -15,7 +15,7 @@ import json
 import logging
 
 from s3.commands import ProcessadorComandos
-from s3.ingestion import IngestorEventos
+from s3.ingestion import IngestorClipes, IngestorEventos
 from s3.kafka_adapter import AssinanteKafka, PublicadorKafka
 from s3.routing import RoteadorAlertas
 from s3.service import AlertService
@@ -58,6 +58,7 @@ def main() -> None:
     DespachanteS3(
         ConectorEventos(assinante, IngestorEventos(service)),
         ConectorComandos(assinante, ProcessadorComandos(service), publicador),
+        ConectorEventos(assinante, IngestorClipes(service)),
     ).conectar(assinante)
 
     entregues = assinante.executar(

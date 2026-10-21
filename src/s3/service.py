@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from s3.alert import Alerta
-from s3.contracts import EventoQualificado
+from s3.contracts import DescritorClipe, EventoQualificado
 from s3.envelope import Sequencia, ler_horario
 from s3.errors import ALERT_NOT_FOUND, INVALID_TRANSITION, ErroS3
 from s3.history import RegistroHistorico
@@ -110,10 +110,50 @@ class AlertService:
             versao_roteamento=(
                 self.roteador.versao if self.roteador else None
             ),
+            captura=rota.captura,
         )
+
+        # O clipe do S4 pode ter chegado antes do alerta.
+        pendente = self.repository.retirar_clipe_pendente(evento.evento_id)
+
+        if rota.captura and pendente is not None:
+            alerta.clip_id = pendente
 
         # Salva o alerta e registra sua criação.
         self.repository.salvar(alerta)
+
+        self._publicar(alerta)
+
+        return alerta
+
+    def vincular_clipe(self, clipe: DescritorClipe) -> Alerta | None:
+        """
+        Vincula o clipe do S4 ao alerta do mesmo event_id, quando a
+        rota pediu captura (capture: true). Vale o primeiro clipe.
+
+        Se o alerta ainda não existe, o clipe fica guardado e entra
+        na criação. Ao vincular, o alerta é republicado com o mesmo
+        state e o clip_id (decisão do VER-3: a especificação só fala
+        em republicar a cada mudança de state).
+        """
+
+        if clipe.evento_id is None:
+            # Captura pedida sem evento: não é de nenhum alerta.
+            return None
+
+        alerta = self.repository.buscar_por_evento(clipe.evento_id)
+
+        if alerta is None:
+            self.repository.guardar_clipe_pendente(
+                clipe.evento_id, clipe.clip_id
+            )
+            return None
+
+        if not alerta.captura or alerta.clip_id is not None:
+            return alerta
+
+        self.repository.definir_clipe(alerta.alerta_id, clipe.clip_id)
+        alerta.clip_id = clipe.clip_id
 
         self._publicar(alerta)
 
@@ -309,9 +349,9 @@ class AlertService:
         if alerta.session_id is None:
             # Alerta criado por comando não tem sessão de origem:
             # sai sem session_id e com sequence contado só pelo
-            # produtor. Regra proposta pelo VER-3 para o perfil
-            # EV-SERVIÇO, pendente de aprovação de B1/B2
-            # (pendência 5).
+            # produtor. Exceção ao perfil EV-SERVIÇO aprovada
+            # em 21/10/2026 (pendência 5); falta constar na
+            # especificação e no validador de B1.
             logger.info(
                 "ods.s3.alert de comando sem session_id: %s",
                 alerta.alerta_id,

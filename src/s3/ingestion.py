@@ -1,6 +1,6 @@
 
 from s3.alert import Alerta
-from s3.contracts import EventoQualificado
+from s3.contracts import DescritorClipe, EventoQualificado
 from s3.envelope import PERFIL_EV_SERVICO, decodificar, validar_envelope
 from s3.errors import INVALID_MESSAGE, ErroS3
 from s3.service import AlertService
@@ -10,6 +10,9 @@ from s3.service import AlertService
 
 SCHEMA_ENTRADA = "ods.s2.event"
 PRODUTOR_ENTRADA = "S2"
+
+SCHEMA_CLIPE = "ods.s4.clip"
+PRODUTOR_CLIPE = "S4"
 
 
 class IngestorEventos:
@@ -60,6 +63,41 @@ class IngestorEventos:
 
         # Só marca depois de processar: se falhar,
         # a mensagem pode ser entregue de novo.
+        repository.registrar_mensagem(message_id)
+
+        return alerta
+
+
+class IngestorClipes:
+    """
+    Recebe ods.s4.clip e vincula o clip_id ao alerta do evento
+    (capture: true no ROUTING). Mensagem inválida gera ErroS3:
+    quem assina o barramento descarta e registra em log.
+    """
+
+    def __init__(self, service: AlertService) -> None:
+        self.service = service
+
+    def receber(self, mensagem: str | bytes) -> Alerta | None:
+        dados = decodificar(mensagem)
+
+        validar_envelope(dados, SCHEMA_CLIPE, "event", PERFIL_EV_SERVICO)
+
+        if dados["producer"] != PRODUTOR_CLIPE:
+            raise ErroS3(
+                INVALID_MESSAGE,
+                f"ods.s4.clip de outro produtor: {dados['producer']}",
+            )
+
+        message_id = dados["message_id"]
+        repository = self.service.repository
+
+        if repository.mensagem_processada(message_id):
+            return None
+
+        clipe = DescritorClipe.de_mensagem(dados)
+        alerta = self.service.vincular_clipe(clipe)
+
         repository.registrar_mensagem(message_id)
 
         return alerta

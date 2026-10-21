@@ -63,7 +63,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado:** 206 testes e 98 subtestes passando, mais 1 falha esperada (`xfailed`: a pendência 5, `session_id` em alerta criado por comando).
+**Resultado:** 208 testes e 98 subtestes passando, mais 1 falha esperada (`xfailed`: a pendência 5, `session_id` em alerta criado por comando).
 
 O que os testes cobrem:
 - envelope e horários;
@@ -83,7 +83,8 @@ O que os testes **não** cobrem: broker real, persistência durável, envio real
 ### Internas (não dependem de outras equipes)
 1. **Persistência em banco.** Sugestão: SQLite. A squad ainda não decidiu. O mesmo banco também resolveria:
    - a perda de mensagem quando a publicação falha (fila de saída);
-   - a deduplicação, que hoje se perde quando o processo reinicia.
+   - a deduplicação, que hoje se perde quando o processo reinicia;
+   - o contador `sequence`, que hoje volta a 0 quando o processo reinicia.
 2. **Teste manual curto contra o broker de testes,** combinado com a TRA-1.
 3. **Organização do repositório.**
    - Documentos de outras equipes estão junto com o código (`Guia_Kafka_B2 (1).PDF`, `ods-6cfinal.html` e `ods-6cfinal_files/`). O ideal é movê-los para `docs/`.
@@ -91,11 +92,14 @@ O que os testes **não** cobrem: broker real, persistência durável, envio real
 4. **`Analise_Projeto_S3_ODS.pdf` está desatualizado** em relação a este documento.
 
 ### Com outras equipes
-As 16 perguntas estão na seção "Pendências com outras equipes" do [README.md](README.md). As mais urgentes:
+As 19 perguntas estão na seção "Pendências com outras equipes" do [README.md](README.md). As mais urgentes:
 - o nome dos tópicos (TRA-1);
 - como o S3 obtém o `clip_id` (TRA-1 e MOD-2);
 - o comportamento nas fases `UPDATED` e `ENDED` (VER-6 e A5);
-- `session_id` em alertas criados por comando: sem ele, o validador de B1 rejeita a mensagem (TRA-1 e TRA-2).
+- `session_id` em alertas criados por comando: sem ele, o validador de B1 rejeita a mensagem (TRA-1 e TRA-2);
+- deduplicação por `alert_id` e ordem de entrega, que afetam todos os consumidores do S3 (TRA-1; pendências 17 e 18).
+
+Contratos, produtores e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_CONTRATOS_S3.md). Roteiro de integração: [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).
 
 ## Critérios de aceite
 

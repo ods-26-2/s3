@@ -429,5 +429,50 @@ class TestFalhaDePublicacao(unittest.TestCase):
         self.assertEqual(len(alertas), 1)
 
 
+class TestRepublicacaoEOrdem(BaseS3):
+    """
+    O que o consumidor recebe para separar repetição de atualização
+    (CHECKLIST_INTEGRACAO_S3.md, seção 2).
+    """
+
+    def test_cada_republicacao_tem_message_id_novo(self):
+        """
+        Mesmo alert_id ao longo do ciclo; message_id novo e sequence
+        crescente na mesma sessão a cada mudança de estado.
+        """
+
+        entrada = self.evento_s2()
+        alerta_id = self.publicador.mensagens[0]["payload"]["alert_id"]
+
+        self.acao(alerta_id, "ACKNOWLEDGE")
+        self.acao(alerta_id, "CLOSE")
+
+        mensagens = self.publicador.mensagens
+
+        self.assertEqual({m["payload"]["alert_id"] for m in mensagens}, {alerta_id})
+        self.assertEqual(len({m["message_id"] for m in mensagens}), 3)
+        self.assertEqual({m["session_id"] for m in mensagens}, {entrada["session_id"]})
+        self.assertEqual([m["sequence"] for m in mensagens], [0, 1, 2])
+
+    def test_ended_antes_de_started(self):
+        """
+        Comportamento atual, registrado como risco (pendência 6):
+        se o ENDED chegar antes do STARTED, o ENDED é ignorado e o
+        STARTED cria um alerta para uma violação que já terminou.
+        """
+
+        event_id = str(uuid4())
+
+        with self.assertLogs("s3.service", level="WARNING"):
+            self.evento_s2(event_id=event_id, phase="ENDED")
+
+        self.evento_s2(event_id=event_id, phase="STARTED")
+
+        self.assertEqual(
+            [m["payload"]["state"] for m in self.publicador.mensagens],
+            ["CREATED"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

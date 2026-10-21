@@ -87,6 +87,8 @@ Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 | `demo_s3.py` | Demonstração com assinante e publicador falsos |
 | `tests/s3/` | Testes (`fabricas.py` monta mensagens válidas) |
 | `tests/s3/contrato.py` | Verificador escrito a partir da especificação, independente do código do S3 |
+| [`MATRIZ_CONTRATOS_S3.md`](MATRIZ_CONTRATOS_S3.md) | Contratos, produtores, consumidores, campos, erros e situação de conformidade |
+| [`CHECKLIST_INTEGRACAO_S3.md`](CHECKLIST_INTEGRACAO_S3.md) | Verificações com S2, A3, A5, A7, B1, B2 e B3; deduplicação e ordem |
 
 ## Instalar e testar (PowerShell)
 
@@ -102,7 +104,7 @@ python -m pytest tests/s3 -q            # ou: python -m unittest discover -s tes
 python demo_s3.py
 ```
 
-Os testes **não acessam o broker real**: usam assinante, publicador e cliente Kafka falsos. O resultado esperado é `206 passed, 1 xfailed`. O `xfailed` é a pendência 5.
+Os testes **não acessam o broker real**: usam assinante, publicador e cliente Kafka falsos. O resultado esperado é `208 passed, 1 xfailed`. O `xfailed` é a pendência 5.
 
 ## Executar com o Kafka
 
@@ -144,9 +146,9 @@ Itens da revisão da especificação (seção 10, item 17), em que o VER-3 é re
 | 3 | Tópico das replies e como elas chegam a quem pediu | TRA-1 |
 | 4 | Como o S3 obtém o `clip_id` do S4. A especificação manda vincular o `clip_id` quando a rota tem `capture: true`, mas a seção 9 diz que o S3 consome só S2, e `ods.s4.clip` não lista o S3 entre os consumidores. Sem mudança no contrato, a saída possível é a aplicação juntar `alert.event_id` com `clip.event_id` (A5 consome `ods.s4.clip`) | TRA-1, MOD-2 |
 | 5 | `session_id` e `sequence` em alertas criados por comando, que não têm sessão de origem. O perfil EV-SERVIÇO exige os dois, e o validador de B1 rejeita a mensagem no publicador. O comando (perfil CMD) não traz sessão, e o S3 não consome `ods.session.started`. Hoje esses alertas saem sem `session_id`, com aviso no log; o teste `test_envelope_ev_servico_completo` está marcado como falha esperada até a decisão. **Bloqueia A2 e A7** | TRA-1 (B1), TRA-2 (B2) |
-| 6 | Nas fases `UPDATED` e `ENDED`: atualizar a mensagem? Encerrar o alerta quando a violação termina? | VER-6, A5 |
+| 6 | Nas fases `UPDATED` e `ENDED`: atualizar a mensagem? Encerrar o alerta quando a violação termina? E se o ENDED chegar antes do STARTED? Hoje o STARTED que chega depois cria um alerta para uma violação já terminada (`test_ended_antes_de_started`) | VER-6, A5 |
 | 7 | Transições permitidas e o que acontece quando `mute_until` vence | A5, B6 |
-| 8 | Autorização: quem pode mandar ACKNOWLEDGE, MUTE e CLOSE. A especificação limita os remetentes de `alert_action.command` a A3, A5 e A7, mas o S3 não confere o `producer`, e não há código de erro para remetente não autorizado | A5, TRA-1 |
+| 8 | Autorização de pessoa: qual `actor` (`user:<id>`) pode mandar ACKNOWLEDGE, MUTE e CLOSE. É decisão do backend de cada aplicação. A conferência do `producer` está na pendência 19 | A5, A3, A7 |
 | 9 | Códigos de erro que não estão na especificação: `INVALID_PAYLOAD` e `INVALID_MESSAGE` | TRA-1 |
 | 10 | Quem executa e interrompe a entrega física de `SOUND` e `PUSH` (inclusive em ACK, MUTE, CLOSE e no vencimento de `mute_until`) | TRA-1, A5 |
 | 11 | Campo `muted_by` no alerta, para o registro de quem desligou (RF6 do A5) | TRA-1, A5 |
@@ -155,7 +157,10 @@ Itens da revisão da especificação (seção 10, item 17), em que o VER-3 é re
 | 14 | A7 é dono de um artefato ROUTING (seção 8), e a especificação descreve as notificações do A7 como "`ods.s3.alert.command` com o artefato ROUTING". Mas o ROUTING é aplicado a `ods.s2.event`, e a build do A7 não consome o S2. Para que serve o ROUTING do A7? | VER-4, TRA-1 |
 
 | 15 | A consulta pagina só por `next_from_at` (milissegundos). Mais de `limit` alertas no mesmo milissegundo não têm como ser paginados. Basta um desempate (por exemplo, um cursor opaco)? | TRA-1 |
-| 16 | Pontos que a especificação não define: `mute_until` no passado, `from_at` maior que `to_at` e `captured_at` de alerta criado por comando. Hoje o S3 aceita os dois primeiros e usa o horário de criação no terceiro | TRA-1, A5 |
+| 16 | Pontos que a especificação não define: `mute_until` no passado, `from_at` maior que `to_at`, `captured_at` de alerta criado por comando e `{duration_s}` (o modelo do ROUTING usa o campo, mas o evento só tem `duration_ms`). Hoje o S3 aceita os dois primeiros, usa o horário de criação no terceiro e calcula `duration_ms // 1000` no quarto | TRA-1, A5 |
+| 17 | **Deduplicação por `alert_id`:** a regra 7 da seção 2 chama `alert_id` de "chave de deduplicação", mas o S3 republica o alerta com o mesmo `alert_id` a cada mudança de estado (com `message_id` novo). Pergunta: o consumidor descarta pelo `message_id` e **atualiza** pelo `alert_id`? Se descartar pelo `alert_id`, perde ACK, MUTE e CLOSE. O mesmo vale para `event_id` em `ods.s2.event`. Detalhes no [checklist](CHECKLIST_INTEGRACAO_S3.md), seção 2 | TRA-1 (B1) |
+| 18 | **Ordem de entrega:** o S3 publica sem chave de partição, então mensagens do mesmo alerta podem chegar fora de ordem. Alternativas: chave `alert_id` em `ods.s3.alert` e `event_id` em `ods.s2.event` (sem campo novo), ou o consumidor ordena por `sequence`. A segunda não funciona para alertas criados por comando (pendência 5) nem depois de um reinício do S3 | TRA-1 (B3), VER-6 |
+| 19 | **Produtor fora da lista do contrato:** a seção 9 lista quem envia cada comando, mas não diz o que fazer com outro remetente. Hoje o S3 aceita qualquer `producer` nos comandos. Alternativas: código de erro novo, `INVALID_MESSAGE`, ou ACL no broker. Descartar sem reply viola a regra 6. O campo `producer` não autentica ninguém. Proposta e análise na [matriz](MATRIZ_CONTRATOS_S3.md), seção 3 | TRA-1 (B1, B3) |
 
 Além do item 17 da seção 10 (S3, revisores VER-3 e VER-4), o VER-3 também revisa os itens 1, 3, 15, 16 e 20. O item 20 inclui o formato do ROUTING.
 

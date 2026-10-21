@@ -176,18 +176,36 @@ class PublicadorKafka:
     def topico(self, schema: str) -> str:
         return self._topicos.get(schema, schema)
 
+    @staticmethod
+    def chave(dados: dict) -> bytes | None:
+        """
+        Chave de partição: o alert_id em ods.s3.alert, para que
+        todas as versões do mesmo alerta caiam na mesma partição
+        e cheguem em ordem. Não muda a mensagem nem o contrato;
+        pendente de confirmação pelo B3 (pendência 18).
+        """
+
+        if dados.get("schema") != "ods.s3.alert":
+            return None
+
+        alerta_id = (dados.get("payload") or {}).get("alert_id")
+
+        return alerta_id.encode("utf-8") if alerta_id else None
+
     def publicar(self, mensagem: str) -> None:
         """
         Publica e espera a entrega ao broker; se não for
         entregue no prazo, lança ConnectionError.
         """
 
-        schema = json.loads(mensagem)["schema"]
+        dados = json.loads(mensagem)
+        schema = dados["schema"]
         produtor = self._obter_produtor()
 
         produtor.produce(
             topic=self.topico(schema),
             value=mensagem.encode("utf-8"),
+            key=self.chave(dados),
         )
 
         pendentes = produtor.flush(self._tempo_entrega_s)

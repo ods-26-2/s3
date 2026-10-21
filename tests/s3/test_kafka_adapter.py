@@ -53,10 +53,12 @@ class ConsumidorFalso:
 class ProdutorFalso:
     def __init__(self, pendentes=0):
         self.enviadas = []
+        self.chaves = []
         self.pendentes = pendentes
 
-    def produce(self, topic, value):
+    def produce(self, topic, value, key=None):
         self.enviadas.append((topic, value))
+        self.chaves.append(key)
 
     def flush(self, tempo):
         return self.pendentes
@@ -166,6 +168,25 @@ class TestPublicadorKafka(unittest.TestCase):
         publicador.publicar(json.dumps({"schema": "ods.s3.alert"}))
 
         self.assertEqual(produtor.enviadas[0][0], "ods.alerta.emitido")
+
+    def test_chave_de_particao(self):
+        """
+        ods.s3.alert usa o alert_id como chave, para manter a ordem
+        das versões do mesmo alerta; replies vão sem chave.
+        """
+
+        produtor = ProdutorFalso()
+        publicador = PublicadorKafka(produtor=produtor)
+        alerta_id = "0f1e2d3c-4b5a-4968-8776-655443322110"
+
+        publicador.publicar(json.dumps(
+            {"schema": "ods.s3.alert", "payload": {"alert_id": alerta_id}}
+        ))
+        publicador.publicar(json.dumps(
+            {"schema": "ods.s3.alert.reply", "payload": {"status": "OK"}}
+        ))
+
+        self.assertEqual(produtor.chaves, [alerta_id.encode("utf-8"), None])
 
     def test_nao_entregue(self):
         publicador = PublicadorKafka(produtor=ProdutorFalso(pendentes=1))

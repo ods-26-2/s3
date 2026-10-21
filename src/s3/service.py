@@ -294,17 +294,37 @@ class AlertService:
     def _publicar(self, alerta: Alerta) -> None:
         """
         Envia o estado atual do alerta às aplicações
-        (ods.s3.alert). Se o publicador falhar, o alerta
-        já está salvo: limitação conhecida, resolvida
-        junto com a persistência.
+        (ods.s3.alert).
+
+        Se o publicador falhar, o alerta já está salvo e a
+        falha só vai para o log: repassá-la faria o comando
+        ficar sem reply registrada, e a reentrega criaria
+        um segundo alerta. A mensagem perdida é limitação
+        conhecida, resolvida pela fila de saída no banco.
         """
 
         if self.publicador is None:
             return
 
-        self.publicador.publicar(
-            alerta_para_json(
-                alerta,
-                sequence=self._sequencia.proximo(alerta.session_id),
+        if alerta.session_id is None:
+            # Alerta criado por comando: não há sessão de
+            # origem, e EV-SERVIÇO exige session_id
+            # (pendência 5, com TRA-1 e TRA-2).
+            logger.warning(
+                "ods.s3.alert sem session_id (perfil EV-SERVIÇO): %s",
+                alerta.alerta_id,
             )
+
+        mensagem = alerta_para_json(
+            alerta,
+            sequence=self._sequencia.proximo(alerta.session_id),
         )
+
+        try:
+            self.publicador.publicar(mensagem)
+        except Exception:
+            logger.exception(
+                "falha ao publicar ods.s3.alert %s (%s)",
+                alerta.alerta_id,
+                alerta.estado,
+            )

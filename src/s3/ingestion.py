@@ -2,12 +2,14 @@
 from s3.alert import Alerta
 from s3.contracts import EventoQualificado
 from s3.envelope import PERFIL_EV_SERVICO, decodificar, validar_envelope
+from s3.errors import INVALID_MESSAGE, ErroS3
 from s3.service import AlertService
 
 'adaptador de JSON'
 'Recebe ods.s2.event do barramento e transforma em evento'
 
 SCHEMA_ENTRADA = "ods.s2.event"
+PRODUTOR_ENTRADA = "S2"
 
 
 class IngestorEventos:
@@ -35,6 +37,13 @@ class IngestorEventos:
         validar_envelope(
             dados, SCHEMA_ENTRADA, "event", PERFIL_EV_SERVICO
         )
+
+        # Só o S2 produz ods.s2.event (seção 9, lista fechada).
+        if dados["producer"] != PRODUTOR_ENTRADA:
+            raise ErroS3(
+                INVALID_MESSAGE,
+                f"ods.s2.event de outro produtor: {dados['producer']}",
+            )
 
         # 2. Descartar a mesma mensagem recebida de novo.
         message_id = dados["message_id"]

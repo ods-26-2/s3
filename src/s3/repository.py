@@ -9,6 +9,14 @@ from s3.history import RegistroHistorico
 ' Salva o alerta'
 
 
+def _ate_milissegundo(horario: datetime) -> datetime:
+    """Descarta os microssegundos, como formatar_horario."""
+
+    return horario.replace(
+        microsecond=horario.microsecond // 1000 * 1000
+    )
+
+
 class AlertRepository:
     """
     Repositório em memória para alertas, histórico
@@ -204,15 +212,28 @@ class AlertRepository:
             key=lambda alerta: alerta.criado_em,
         )
 
-        pagina = [deepcopy(alerta) for alerta in encontrados[:limite]]
+        if len(encontrados) <= limite:
+            return [deepcopy(alerta) for alerta in encontrados], None
 
-        proximo = (
-            encontrados[limite].criado_em
-            if len(encontrados) > limite
-            else None
-        )
+        # next_from_at sai com milissegundos: a próxima página
+        # começa no milissegundo do primeiro alerta que ficou
+        # de fora. A página termina antes desse milissegundo,
+        # para que a próxima não repita alertas.
+        proximo = _ate_milissegundo(encontrados[limite].criado_em)
 
-        return pagina, proximo
+        pagina = [
+            alerta
+            for alerta in encontrados[:limite]
+            if _ate_milissegundo(alerta.criado_em) < proximo
+        ]
+
+        if not pagina:
+            # Mais de `limite` alertas no mesmo milissegundo:
+            # next_from_at não consegue avançar (pendência:
+            # o contrato não tem cursor além de next_from_at).
+            pagina = encontrados[:limite]
+
+        return [deepcopy(alerta) for alerta in pagina], proximo
 
     def mensagem_processada(self, message_id: str) -> bool:
         return message_id in self._mensagens

@@ -138,12 +138,21 @@ class TestAlertAction(BaseComandos):
 
 class TestEnvelopeDeComando(BaseComandos):
 
+    def erro_de_envelope(self, dados):
+        """Todo comando recebe reply, mesmo com envelope inválido."""
+
+        resposta = self.enviar(dados)
+
+        self.assertEqual(resposta["correlation_id"], dados["message_id"])
+        self.assertEqual(resposta["payload"]["status"], "ERROR")
+        self.assertEqual(resposta["payload"]["error"]["code"], "INVALID_MESSAGE")
+
     def test_sem_target(self):
         dados = self.acao("ACKNOWLEDGE")
         del dados["target"]
 
-        with self.assertRaises(ErroS3):
-            self.enviar(dados)
+        self.erro_de_envelope(dados)
+        self.assertEqual(self.service.repository.buscar_por_id(self.alerta_id).estado, "CREATED")
 
     def test_outro_destino(self):
         with self.assertRaises(ErroS3):
@@ -154,8 +163,31 @@ class TestEnvelopeDeComando(BaseComandos):
             self.enviar(comando("ods.s4.capture.command", {}))
 
     def test_message_type_errado(self):
-        with self.assertRaises(ErroS3):
-            self.enviar(comando(ACAO, {}, message_type="query"))
+        self.erro_de_envelope(comando(ACAO, {}, message_type="query"))
+
+    def test_outros_erros_de_envelope_tem_reply(self):
+        for alteracao in (
+            {"schema_version": "2.0"},
+            {"published_at": "ontem"},
+            {"producer": ""},
+        ):
+            with self.subTest(alteracao=alteracao):
+                self.erro_de_envelope(comando(CRIAR, {}, **alteracao))
+
+        self.erro_de_envelope(comando(CRIAR, []))
+
+    def test_sem_message_id_valido_nao_tem_reply(self):
+        """Sem message_id não há correlation_id para a reply."""
+
+        for valor in (None, "cmd-1"):
+            with self.subTest(valor=valor):
+                with self.assertRaises(ErroS3):
+                    self.enviar(comando(ACAO, {}, message_id=valor))
+
+    def test_comando_invalido_repetido_mesma_reply(self):
+        dados = comando(ACAO, {}, schema_version="2.0")
+
+        self.assertEqual(self.enviar(dados), self.enviar(dados))
 
 
 class TestCriarAlerta(BaseComandos):

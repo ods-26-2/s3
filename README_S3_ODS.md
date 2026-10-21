@@ -33,6 +33,13 @@ Também existe um adaptador Kafka que segue o Guia de Uso do Kafka da TRA-1.
 - **Corrigido nesta revisão:**
   - os identificadores passaram a ser validados como UUID v4: `message_id` e `session_id` no envelope; `event_id`, `alert_id` e `clip_id` no payload;
   - `schema_version` agora precisa ser `MAJOR.MINOR` (antes, `"1.x"` ou `"1"` passavam).
+- **Sprint 3, etapa 1 (revisão dos contratos):**
+  - uma falha ao publicar `ods.s3.alert` não é mais repassada; antes, a reentrega de um `alert.command` criava um segundo alerta;
+  - um comando com envelope inválido agora recebe reply `ERROR` (`INVALID_MESSAGE`); antes, era descartado sem resposta;
+  - `ods.s2.event` só é aceito do produtor `S2`;
+  - a paginação da consulta não repete alertas criados no mesmo milissegundo;
+  - um alerta criado por comando sem `session_id` gera aviso no log; nenhum valor é inventado;
+  - novo `tests/s3/contrato.py` confere as mensagens publicadas e os exemplos de `jsons/` com regras escritas a partir da especificação.
 - **Não implementado, por depender de outras equipes:** consumo de `ods.session.started` e de `ods.artifact.published`, e conferência do `producer` dos comandos (pendências 8, 12 e 13 do README.md).
 
 Os nomes internos (`Alerta`, `EventoQualificado`, `evento_id`…) continuam em português. A tradução para os nomes do contrato fica só na borda: `contracts.py`, `output.py` e `commands.py`.
@@ -56,7 +63,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado:** 182 testes e 79 subtestes passando (pytest e unittest).
+**Resultado:** 206 testes e 98 subtestes passando, mais 1 falha esperada (`xfailed`: a pendência 5, `session_id` em alerta criado por comando).
 
 O que os testes cobrem:
 - envelope e horários;
@@ -84,7 +91,7 @@ O que os testes **não** cobrem: broker real, persistência durável, envio real
 4. **`Analise_Projeto_S3_ODS.pdf` está desatualizado** em relação a este documento.
 
 ### Com outras equipes
-As 14 perguntas estão na seção "Pendências com outras equipes" do [README.md](README.md). As mais urgentes:
+As 16 perguntas estão na seção "Pendências com outras equipes" do [README.md](README.md). As mais urgentes:
 - o nome dos tópicos (TRA-1);
 - como o S3 obtém o `clip_id` (TRA-1 e MOD-2);
 - o comportamento nas fases `UPDATED` e `ENDED` (VER-6 e A5);

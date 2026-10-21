@@ -50,6 +50,8 @@ Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 - **Envelope comum de 13 campos.** Horários em ISO 8601 UTC com milissegundos (`2026-09-23T14:29:59.870Z`). `schema_version` é `MAJOR.MINOR` e aceita qualquer `1.<n>`.
 - **Identificadores são UUID v4** (seção 2, regra 3): `message_id` e `session_id` no envelope; `event_id`, `alert_id` e `clip_id` no payload. Fora do formato: `INVALID_MESSAGE` (envelope) ou `INVALID_PAYLOAD` (payload).
 - **Mensagem inválida** (JSON quebrado, envelope ou payload fora do contrato) é **descartada e registrada em log**, nunca processada "na tentativa".
+- **Todo comando recebe reply** (seção 2, regra 6), inclusive com envelope inválido (`INVALID_MESSAGE`). Ficam sem reply só a mensagem de outro schema, a de outro `target` e a sem `message_id` UUID, porque não há a quem responder.
+- **`ods.s2.event` só é aceito do produtor `S2`** (seção 9, lista fechada).
 - **Duplicatas:**
   - mensagem com `message_id` já processado é descartada;
   - o mesmo `event_id` gera um alerta só. Se o alerta já existe, as fases `UPDATED` e `ENDED` não o alteram;
@@ -84,6 +86,7 @@ Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 | `src/s3/__main__.py` | Executa o S3 ligado ao Kafka |
 | `demo_s3.py` | Demonstração com assinante e publicador falsos |
 | `tests/s3/` | Testes (`fabricas.py` monta mensagens válidas) |
+| `tests/s3/contrato.py` | Verificador escrito a partir da especificação, independente do código do S3 |
 
 ## Instalar e testar (PowerShell)
 
@@ -99,7 +102,7 @@ python -m pytest tests/s3 -q            # ou: python -m unittest discover -s tes
 python demo_s3.py
 ```
 
-Os testes **não acessam o broker real**: usam assinante, publicador e cliente Kafka falsos.
+Os testes **não acessam o broker real**: usam assinante, publicador e cliente Kafka falsos. O resultado esperado é `206 passed, 1 xfailed`. O `xfailed` é a pendência 5.
 
 ## Executar com o Kafka
 
@@ -121,7 +124,9 @@ python -m s3 --routing jsons/routing_a5.json --versao-routing routing-a5-1 --tem
 ## Limitações conhecidas
 
 - **Persistência em memória.** Alertas, histórico e `message_id` processados se perdem quando o processo reinicia. A escolha do banco é decisão da squad: cada build tem o seu, e o P3 opera o armazenamento.
-- **Falha ao publicar.** Se o barramento falhar ao publicar `ods.s3.alert`, o alerta já ficou salvo e a mensagem se perde. A solução (fila de saída no banco) depende da persistência.
+- **Falha ao publicar.** Se o barramento falhar ao publicar `ods.s3.alert`, o alerta já ficou salvo, a falha vai para o log e a mensagem se perde. A reply do comando sai normalmente, de modo que a reentrega não cria um segundo alerta. A solução (fila de saída no banco) depende da persistência.
+- **Paginação.** `next_from_at` tem milissegundos. A página termina antes do milissegundo do primeiro alerta que ficou de fora, para não repetir alertas. Se houver mais de `limit` alertas no mesmo milissegundo, a paginação não avança (pendência 15).
+- **Alerta criado por comando sem `session_id`.** Ele sai sem o campo exigido pelo EV-SERVIÇO, e o S3 registra um aviso no log (pendência 5). `captured_at` recebe o horário de criação, porque não há sinal de origem.
 - **`clip_id`.** Alertas roteados não recebem o `clip_id`, mesmo com `capture: true` (ver pendência 4).
 - **Entrega das notificações.** A arquitetura atribui os canais ao S3, mas não há contrato de entrega física. Hoje o S3 só publica `channels` no alerta: não toca som nem envia push (ver pendência 10).
 - **Texto do alerta.** `title` e `message` usam os valores do primeiro evento recebido; as fases `UPDATED` não os atualizam.
@@ -138,7 +143,7 @@ Itens da revisão da especificação (seção 10, item 17), em que o VER-3 é re
 | 2 | Campos de horário do envelope: o guia usa `occurred_at`; a especificação usa `published_at`/`captured_at` | TRA-1 |
 | 3 | Tópico das replies e como elas chegam a quem pediu | TRA-1 |
 | 4 | Como o S3 obtém o `clip_id` do S4. A especificação manda vincular o `clip_id` quando a rota tem `capture: true`, mas a seção 9 diz que o S3 consome só S2, e `ods.s4.clip` não lista o S3 entre os consumidores. Sem mudança no contrato, a saída possível é a aplicação juntar `alert.event_id` com `clip.event_id` (A5 consome `ods.s4.clip`) | TRA-1, MOD-2 |
-| 5 | `session_id` e `sequence` em alertas criados por comando, que não têm sessão de origem. O perfil EV-SERVIÇO exige os dois, e o validador de B1 rejeita a mensagem no publicador: hoje esses alertas saem sem `session_id` | TRA-1, TRA-2 |
+| 5 | `session_id` e `sequence` em alertas criados por comando, que não têm sessão de origem. O perfil EV-SERVIÇO exige os dois, e o validador de B1 rejeita a mensagem no publicador. O comando (perfil CMD) não traz sessão, e o S3 não consome `ods.session.started`. Hoje esses alertas saem sem `session_id`, com aviso no log; o teste `test_envelope_ev_servico_completo` está marcado como falha esperada até a decisão. **Bloqueia A2 e A7** | TRA-1 (B1), TRA-2 (B2) |
 | 6 | Nas fases `UPDATED` e `ENDED`: atualizar a mensagem? Encerrar o alerta quando a violação termina? | VER-6, A5 |
 | 7 | Transições permitidas e o que acontece quando `mute_until` vence | A5, B6 |
 | 8 | Autorização: quem pode mandar ACKNOWLEDGE, MUTE e CLOSE. A especificação limita os remetentes de `alert_action.command` a A3, A5 e A7, mas o S3 não confere o `producer`, e não há código de erro para remetente não autorizado | A5, TRA-1 |
@@ -148,6 +153,9 @@ Itens da revisão da especificação (seção 10, item 17), em que o VER-3 é re
 | 12 | `ods.session.started`: a seção 7 diz que a camada 3 reinicia o estado a cada sessão, e o contrato fala em "todo componente com estado", mas a lista fechada da seção 9 não inclui o S3. O S3 deve consumir? Se consumir, alertas abertos **não** podem sumir num SEEK de replay | TRA-2, TRA-1 |
 | 13 | `ods.artifact.published`: quem usa um artefato deve recarregá-lo ao receber o anúncio. O S3 só carrega o ROUTING de arquivo, na partida, e não há contrato para buscar o conteúdo pela `uri` (`registry://…`) | TRA-1, MOD-1 (B5) |
 | 14 | A7 é dono de um artefato ROUTING (seção 8), e a especificação descreve as notificações do A7 como "`ods.s3.alert.command` com o artefato ROUTING". Mas o ROUTING é aplicado a `ods.s2.event`, e a build do A7 não consome o S2. Para que serve o ROUTING do A7? | VER-4, TRA-1 |
+
+| 15 | A consulta pagina só por `next_from_at` (milissegundos). Mais de `limit` alertas no mesmo milissegundo não têm como ser paginados. Basta um desempate (por exemplo, um cursor opaco)? | TRA-1 |
+| 16 | Pontos que a especificação não define: `mute_until` no passado, `from_at` maior que `to_at` e `captured_at` de alerta criado por comando. Hoje o S3 aceita os dois primeiros e usa o horário de criação no terceiro | TRA-1, A5 |
 
 Além do item 17 da seção 10 (S3, revisores VER-3 e VER-4), o VER-3 também revisa os itens 1, 3, 15, 16 e 20. O item 20 inclui o formato do ROUTING.
 

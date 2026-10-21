@@ -110,17 +110,19 @@ class TestPublicacaoAlertas(unittest.TestCase):
 
     def test_falha_na_publicacao(self):
         """
-        Falha do barramento é repassada a quem chamou,
-        mas o alerta já fica salvo (limitação conhecida).
+        Falha do barramento vai para o log e não é repassada:
+        o alerta fica salvo e a mensagem se perde
+        (limitação conhecida, resolvida pela fila de saída).
         """
 
         service = AlertService(
             roteador=roteador(), publicador=PublicadorComFalha()
         )
 
-        with self.assertRaises(ConnectionError):
-            service.processar_evento_roteado(evento())
+        with self.assertLogs("s3.service", level="ERROR"):
+            alerta = service.processar_evento_roteado(evento())
 
+        self.assertEqual(alerta.estado, "CREATED")
         self.assertIsNotNone(service.repository.buscar_por_evento("evt-001"))
 
     def test_fluxo_entrada_ate_saida(self):

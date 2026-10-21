@@ -90,9 +90,11 @@ class ProcessadorComandos:
         """
         Processa um comando ou consulta.
 
-        Envelope inválido gera ErroS3 (sem reply: não há
-        como responder a quem não se identificou). Erro no
-        payload ou na regra vira reply com status ERROR.
+        Todo comando recebe reply (seção 2, regra 6): erro
+        no envelope, no payload ou na regra vira reply com
+        status ERROR. Só gera ErroS3, sem reply, a mensagem
+        que não é do S3 (outro schema ou outro target) ou
+        que não tem message_id válido para a correlação.
         """
 
         dados = decodificar(mensagem)
@@ -103,14 +105,16 @@ class ProcessadorComandos:
 
         message_type, tratador = self._tratadores[schema]
 
-        payload = validar_envelope(dados, schema, message_type, PERFIL_CMD)
+        target = dados.get("target")
 
-        if dados["target"] != DESTINO:
+        if target is not None and target != DESTINO:
             raise ErroS3(
-                INVALID_MESSAGE, f"Comando para outro destino: {dados['target']}"
+                INVALID_MESSAGE, f"Comando para outro destino: {target}"
             )
 
-        message_id = dados["message_id"]
+        message_id = dados.get("message_id")
+        validar_uuid(message_id, "message_id", INVALID_MESSAGE)
+
         repository = self.service.repository
 
         anterior = repository.resposta_registrada(message_id)
@@ -119,6 +123,9 @@ class ProcessadorComandos:
             return json.dumps(anterior, ensure_ascii=False)
 
         try:
+            payload = validar_envelope(
+                dados, schema, message_type, PERFIL_CMD
+            )
             corpo = tratador(payload, message_id)
         except ErroS3 as erro:
             corpo = self._erro(erro.codigo, str(erro))

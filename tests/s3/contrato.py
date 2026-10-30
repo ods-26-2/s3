@@ -6,6 +6,10 @@ Serve para conferir as mensagens que o S3 publica com regras
 independentes das validações internas: se as duas concordarem
 por engano, este arquivo ainda acusa. Não substitui o validador
 de B1, que ainda não foi publicado.
+
+Uma regra ainda não está escrita na especificação: session_id
+opcional em ods.s3.alert criado por comando (pendência 5, aprovada
+em 21/10/2026). Ela só vale com origem="comando".
 """
 
 import re
@@ -72,10 +76,17 @@ def _texto(valor, campo):
     )
 
 
-def envelope(mensagem: dict, perfil: str) -> dict:
+def envelope(
+    mensagem: dict,
+    perfil: str,
+    sessao_opcional: bool = False,
+) -> dict:
     """
     Confere o envelope pelo perfil (EV-SERVIÇO, CMD ou RPL)
     e devolve o payload.
+
+    sessao_opcional: regra aprovada para alerta criado por
+    comando (EV-SERVIÇO sem session_id).
     """
 
     _exigir(isinstance(mensagem, dict), "a mensagem deve ser um objeto")
@@ -111,11 +122,24 @@ def envelope(mensagem: dict, perfil: str) -> dict:
     if perfil == "EV-SERVIÇO":
         _exigir(mensagem["message_type"] == "event", "EV-SERVIÇO é event")
 
-        for campo in ("captured_at", "session_id", "sequence"):
+        obrigatorios = ("captured_at", "sequence")
+
+        if not sessao_opcional:
+            obrigatorios += ("session_id",)
+
+        for campo in obrigatorios:
             _exigir(campo in mensagem, f"EV-SERVIÇO exige {campo}")
 
         _horario(mensagem["captured_at"], "captured_at")
-        _uuid(mensagem["session_id"], "session_id")
+
+        if "session_id" in mensagem:
+            _uuid(mensagem["session_id"], "session_id")
+        else:
+            # Sem sessão, a origem precisa ficar rastreável.
+            _exigir(
+                "correlation_id" in mensagem,
+                "sem session_id, exige correlation_id do comando",
+            )
         _exigir(
             isinstance(mensagem["sequence"], int)
             and not isinstance(mensagem["sequence"], bool)
@@ -231,13 +255,31 @@ def payload_alerta(payload: dict) -> None:
             _horario(payload[campo], campo)
 
 
-def mensagem_alerta(mensagem: dict) -> dict:
-    """ods.s3.alert completo: envelope EV-SERVIÇO e payload."""
+def mensagem_alerta(mensagem: dict, origem: str = "evento") -> dict:
+    """
+    ods.s3.alert completo: envelope EV-SERVIÇO e payload.
 
-    payload = envelope(mensagem, "EV-SERVIÇO")
+    origem="evento": alerta de ods.s2.event; session_id obrigatório
+    e correlation_id = event_id (seção 7).
+    origem="comando": alerta de ods.s3.alert.command; session_id
+    opcional (regra aprovada em 21/10/2026, pendência 5).
+    """
+
+    if origem not in ("evento", "comando"):
+        raise ValueError(f"origem desconhecida: {origem}")
+
+    payload = envelope(
+        mensagem, "EV-SERVIÇO", sessao_opcional=origem == "comando"
+    )
 
     _exigir(mensagem["schema"] == "ods.s3.alert", "schema ods.s3.alert")
     _exigir(mensagem["producer"] == "S3", "produtor S3")
     payload_alerta(payload)
+
+    if origem == "evento":
+        _exigir(
+            mensagem.get("correlation_id") == payload.get("event_id"),
+            "alerta de evento: correlation_id deve ser o event_id",
+        )
 
     return payload

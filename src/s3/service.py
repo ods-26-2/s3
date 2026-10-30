@@ -4,8 +4,8 @@ from datetime import datetime
 from uuid import uuid4
 
 from s3.alert import Alerta
-from s3.contracts import EventoQualificado
-from s3.envelope import Sequencia, ler_horario
+from s3.contracts import DescritorClipe, EventoQualificado
+from s3.envelope import ler_horario
 from s3.errors import ALERT_NOT_FOUND, INVALID_TRANSITION, ErroS3
 from s3.history import RegistroHistorico
 from s3.output import alerta_para_json
@@ -54,8 +54,6 @@ class AlertService:
 
         # Opcional: sem publicador, nada é enviado às aplicações.
         self.publicador = publicador
-
-        self._sequencia = Sequencia()
 
     def processar_evento(
         self,
@@ -110,12 +108,57 @@ class AlertService:
             versao_roteamento=(
                 self.roteador.versao if self.roteador else None
             ),
+            captura=rota.captura,
         )
 
-        # Salva o alerta e registra sua criação.
-        self.repository.salvar(alerta)
+        # O clipe do S4 pode ter chegado antes do alerta.
+        pendente = self.repository.retirar_clipe_pendente(evento.evento_id)
 
-        self._publicar(alerta)
+        if rota.captura and pendente is not None:
+            alerta.clip_id = pendente
+
+        # Salva o alerta e registra sua criação.
+        with self.repository.transacao():
+            self.repository.salvar(alerta)
+            self._enfileirar(alerta)
+
+        self.despachar_saida()
+
+        return alerta
+
+    def vincular_clipe(self, clipe: DescritorClipe) -> Alerta | None:
+        """
+        Vincula o clipe do S4 ao alerta do mesmo event_id, quando a
+        rota pediu captura (capture: true). Vale o primeiro clipe.
+
+        Se o alerta ainda não existe, o clipe fica guardado e entra
+        na criação. Ao vincular, o alerta é republicado com o mesmo
+        state e o clip_id (decisão do VER-3: a especificação só fala
+        em republicar a cada mudança de state).
+        """
+
+        if clipe.evento_id is None:
+            # Captura pedida sem evento: não é de nenhum alerta.
+            return None
+
+        alerta = self.repository.buscar_por_evento(clipe.evento_id)
+
+        if alerta is None:
+            self.repository.guardar_clipe_pendente(
+                clipe.evento_id, clipe.clip_id
+            )
+            return None
+
+        if not alerta.captura or alerta.clip_id is not None:
+            return alerta
+
+        alerta.clip_id = clipe.clip_id
+
+        with self.repository.transacao():
+            self.repository.definir_clipe(alerta.alerta_id, clipe.clip_id)
+            self._enfileirar(alerta)
+
+        self.despachar_saida()
 
         return alerta
 
@@ -170,9 +213,11 @@ class AlertService:
             correlacao_id=correlacao_id,
         )
 
-        self.repository.salvar(alerta, indexar_evento=False)
+        with self.repository.transacao():
+            self.repository.salvar(alerta, indexar_evento=False)
+            self._enfileirar(alerta)
 
-        self._publicar(alerta)
+        self.despachar_saida()
 
         return alerta
 
@@ -285,46 +330,78 @@ class AlertService:
 
         # Grava estado e histórico juntos; se algo for
         # inválido, nada é alterado.
-        self.repository.atualizar(alerta, registro)
+        with self.repository.transacao():
+            self.repository.atualizar(alerta, registro)
+            self._enfileirar(alerta)
 
-        self._publicar(alerta)
+        self.despachar_saida()
 
         return alerta
 
-    def _publicar(self, alerta: Alerta) -> None:
+    def _enfileirar(self, alerta: Alerta) -> None:
         """
-        Envia o estado atual do alerta às aplicações
-        (ods.s3.alert).
+        Põe o estado atual do alerta (ods.s3.alert) na fila de
+        saída, na mesma transação da mudança: se o processo cair
+        antes de publicar, a mensagem continua guardada e sai
+        na próxima chamada a despachar_saida() (outbox).
 
-        Se o publicador falhar, o alerta já está salvo e a
-        falha só vai para o log: repassá-la faria o comando
-        ficar sem reply registrada, e a reentrega criaria
-        um segundo alerta. A mensagem perdida é limitação
-        conhecida, resolvida pela fila de saída no banco.
+        Sem publicador, nada é enviado às aplicações.
         """
 
         if self.publicador is None:
             return
 
         if alerta.session_id is None:
-            # Alerta criado por comando: não há sessão de
-            # origem, e EV-SERVIÇO exige session_id
-            # (pendência 5, com TRA-1 e TRA-2).
-            logger.warning(
-                "ods.s3.alert sem session_id (perfil EV-SERVIÇO): %s",
+            # Alerta criado por comando não tem sessão de origem:
+            # sai sem session_id e com sequence contado só pelo
+            # produtor. Exceção ao perfil EV-SERVIÇO aprovada
+            # em 21/10/2026 (pendência 5); falta constar na
+            # especificação e no validador de B1.
+            logger.info(
+                "ods.s3.alert de comando sem session_id: %s",
                 alerta.alerta_id,
             )
 
-        mensagem = alerta_para_json(
-            alerta,
-            sequence=self._sequencia.proximo(alerta.session_id),
+        sequence = self.repository.proximo_sequence(alerta.session_id)
+
+        self.repository.enfileirar_saida(
+            alerta_para_json(alerta, sequence=sequence)
         )
 
-        try:
-            self.publicador.publicar(mensagem)
-        except Exception:
-            logger.exception(
-                "falha ao publicar ods.s3.alert %s (%s)",
-                alerta.alerta_id,
-                alerta.estado,
-            )
+    def despachar_saida(self) -> int:
+        """
+        Publica a fila de saída, na ordem em que entrou. Para
+        na primeira falha, para não inverter a ordem; o resto
+        fica para a próxima chamada.
+
+        Entrega pelo menos uma vez: se o processo cair entre
+        publicar e marcar como enviada, a mesma mensagem (mesmo
+        message_id) sai de novo, e o consumidor a descarta pelo
+        message_id.
+
+        Dentro de uma transação não publica nada: a mensagem
+        ainda pode ser desfeita. Quem abriu a transação chama
+        de novo depois de confirmá-la.
+
+        Retorna quantas mensagens saíram.
+        """
+
+        if self.publicador is None or self.repository.em_transacao():
+            return 0
+
+        enviadas = 0
+
+        for id_saida, mensagem in self.repository.pendentes_saida():
+            try:
+                self.publicador.publicar(mensagem)
+            except Exception:
+                logger.exception(
+                    "falha ao publicar; %d mensagem(ns) na fila de saída",
+                    len(self.repository.pendentes_saida()),
+                )
+                break
+
+            self.repository.marcar_enviada(id_saida)
+            enviadas += 1
+
+        return enviadas

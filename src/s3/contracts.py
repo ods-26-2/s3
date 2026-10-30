@@ -158,3 +158,63 @@ class EventoQualificado:
         evento.validar()
 
         return evento
+
+
+TIPOS_MIDIA = {"CLIP", "SNAPSHOT"}
+
+# Campos obrigatórios do payload de ods.s4.clip.
+CAMPOS_CLIPE = (
+    "clip_id",
+    "media_type",
+    "media_uri",
+    "start_at",
+    "end_at",
+    "hash_sha256",
+    "expires_at",
+)
+
+
+@dataclass(frozen=True)
+class DescritorClipe:
+    """
+    Descritor de mídia do S4 (ods.s4.clip, Especificação 1.0,
+    seção 7). O S3 só usa clip_id e event_id; os outros campos
+    são conferidos para não aceitar mensagem fora do contrato.
+    """
+
+    clip_id: str
+    evento_id: Optional[str]              # event_id
+    tipo_midia: str                       # media_type
+
+    @classmethod
+    def de_mensagem(cls, envelope: dict) -> "DescritorClipe":
+        payload = envelope["payload"]
+
+        for campo in CAMPOS_CLIPE:
+            if payload.get(campo) is None:
+                raise ErroS3(
+                    INVALID_PAYLOAD, f"Campo obrigatório ausente: {campo}"
+                )
+
+        validar_uuid(payload["clip_id"], "clip_id")
+
+        if payload.get("event_id") is not None:
+            validar_uuid(payload["event_id"], "event_id")
+
+        if payload["media_type"] not in TIPOS_MIDIA:
+            raise ErroS3(
+                INVALID_PAYLOAD,
+                f"media_type inválido: {payload['media_type']!r}",
+            )
+
+        for campo in ("media_uri", "hash_sha256"):
+            _texto(payload[campo], campo)
+
+        for campo in ("start_at", "end_at", "expires_at"):
+            ler_horario(payload[campo], campo)
+
+        return cls(
+            clip_id=payload["clip_id"],
+            evento_id=payload.get("event_id"),
+            tipo_midia=payload["media_type"],
+        )

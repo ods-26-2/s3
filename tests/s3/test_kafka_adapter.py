@@ -11,10 +11,13 @@ import unittest
 from unittest import mock
 
 from s3.kafka_adapter import (
+    TOPICOS_COMANDOS,
+    TOPICOS_ENTRADA,
     VARIAVEL_BROKER,
     AssinanteKafka,
     PublicadorKafka,
     endereco_broker,
+    topicos_entrada,
 )
 
 
@@ -51,14 +54,26 @@ class ConsumidorFalso:
 
 
 class ProdutorFalso:
-    def __init__(self, pendentes=0):
-        self.enviadas = []
-        self.pendentes = pendentes
+    """Simula o confluent-kafka: o relatório de entrega sai no flush."""
 
-    def produce(self, topic, value):
+    def __init__(self, pendentes=0, erro_entrega=None):
+        self.enviadas = []
+        self.chaves = []
+        self.pendentes = pendentes
+        self.erro_entrega = erro_entrega
+        self._relatorios = []
+
+    def produce(self, topic, value, key=None, on_delivery=None):
         self.enviadas.append((topic, value))
+        self.chaves.append(key)
+        self._relatorios.append(on_delivery)
 
     def flush(self, tempo):
+        for relatorio in self._relatorios:
+            if relatorio is not None:
+                relatorio(self.erro_entrega, None)
+
+        self._relatorios = []
         return self.pendentes
 
 
@@ -139,6 +154,22 @@ class TestAssinanteKafka(unittest.TestCase):
             AssinanteKafka(consumidor=ConsumidorFalso([])).executar(max_mensagens=1)
 
 
+class TestTopicosDeEntrada(unittest.TestCase):
+
+    def test_com_roteamento_assina_tudo(self):
+        self.assertEqual(topicos_entrada(True), TOPICOS_ENTRADA)
+        self.assertIn("ods.s2.event", TOPICOS_ENTRADA)
+
+    def test_sem_roteamento_so_comandos(self):
+        """Build sem S2 (A7): não assina ods.s2.event nem ods.s4.clip."""
+
+        topicos = topicos_entrada(False)
+
+        self.assertEqual(topicos, TOPICOS_COMANDOS)
+        self.assertNotIn("ods.s2.event", topicos)
+        self.assertNotIn("ods.s4.clip", topicos)
+
+
 class TestPublicadorKafka(unittest.TestCase):
 
     def test_topico_pelo_schema(self):
@@ -166,6 +197,40 @@ class TestPublicadorKafka(unittest.TestCase):
         publicador.publicar(json.dumps({"schema": "ods.s3.alert"}))
 
         self.assertEqual(produtor.enviadas[0][0], "ods.alerta.emitido")
+
+    def test_chave_de_particao(self):
+        """
+        ods.s3.alert usa o alert_id como chave, para manter a ordem
+        das versões do mesmo alerta; replies vão sem chave.
+        """
+
+        produtor = ProdutorFalso()
+        publicador = PublicadorKafka(produtor=produtor)
+        alerta_id = "0f1e2d3c-4b5a-4968-8776-655443322110"
+
+        publicador.publicar(json.dumps(
+            {"schema": "ods.s3.alert", "payload": {"alert_id": alerta_id}}
+        ))
+        publicador.publicar(json.dumps(
+            {"schema": "ods.s3.alert.reply", "payload": {"status": "OK"}}
+        ))
+
+        self.assertEqual(produtor.chaves, [alerta_id.encode("utf-8"), None])
+
+    def test_broker_recusa_a_mensagem(self):
+        """
+        flush() devolve 0, mas o relatório de entrega traz erro
+        (por exemplo, tópico inexistente): é falha, não sucesso.
+        """
+
+        publicador = PublicadorKafka(
+            produtor=ProdutorFalso(erro_entrega="UNKNOWN_TOPIC_OR_PART")
+        )
+
+        with self.assertRaises(ConnectionError) as contexto:
+            publicador.publicar(json.dumps({"schema": "ods.s3.alert"}))
+
+        self.assertIn("UNKNOWN_TOPIC_OR_PART", str(contexto.exception))
 
     def test_nao_entregue(self):
         publicador = PublicadorKafka(produtor=ProdutorFalso(pendentes=1))

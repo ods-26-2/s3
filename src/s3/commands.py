@@ -122,27 +122,35 @@ class ProcessadorComandos:
         if anterior is not None:
             return json.dumps(anterior, ensure_ascii=False)
 
-        try:
-            payload = validar_envelope(
-                dados, schema, message_type, PERFIL_CMD
+        # O efeito do comando, a fila de saída e a reply registrada
+        # são gravados juntos: se o processo cair no meio, nada fica,
+        # e o comando reentregue é processado do zero, sem duplicar.
+        # Um erro de regra desfaz só a parte do tratador (transação
+        # aninhada no serviço); a reply de erro é registrada.
+        with repository.transacao():
+            try:
+                payload = validar_envelope(
+                    dados, schema, message_type, PERFIL_CMD
+                )
+                corpo = tratador(payload, message_id)
+            except ErroS3 as erro:
+                corpo = self._erro(erro.codigo, str(erro))
+            except ValueError as erro:
+                corpo = self._erro(INVALID_PAYLOAD, str(erro))
+
+            resposta = montar_envelope(
+                "reply",
+                _schema_reply(schema),
+                corpo,
+                correlation_id=message_id,
             )
-            corpo = tratador(payload, message_id)
-        except ErroS3 as erro:
-            corpo = self._erro(erro.codigo, str(erro))
-        except ValueError as erro:
-            corpo = self._erro(INVALID_PAYLOAD, str(erro))
 
-        resposta = montar_envelope(
-            "reply",
-            _schema_reply(schema),
-            corpo,
-            correlation_id=message_id,
-        )
+            # Consultas não alteram estado; só comandos
+            # precisam devolver a mesma reply se repetidos.
+            if message_type == "command":
+                repository.registrar_mensagem(message_id, resposta)
 
-        # Consultas não alteram estado; só comandos
-        # precisam devolver a mesma reply se repetidos.
-        if message_type == "command":
-            repository.registrar_mensagem(message_id, resposta)
+        self.service.despachar_saida()
 
         return json.dumps(resposta, ensure_ascii=False)
 

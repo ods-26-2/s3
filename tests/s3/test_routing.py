@@ -80,7 +80,7 @@ class TestRoteadorAlertas(unittest.TestCase):
 class TestArtefatoRouting(unittest.TestCase):
 
     def test_carregar_exemplo(self):
-        """jsons/routing_a5.json deve ser carregado."""
+        """dados/routing_a5.json deve ser carregado."""
 
         carregado = RoteadorAlertas.de_artefato(
             ler_json("routing_a5.json"), "routing-a5-1"

@@ -220,3 +220,10 @@ __marimo__/
 # Ambiente virtual
 .venv/
 venv/
+# Banco local do S3 (alertas, histórico e fila de saída)
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Pacotes para enviar às equipes (gerados das pastas)
+*.zip

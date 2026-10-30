@@ -5,7 +5,12 @@ from typing import Callable, Protocol
 from s3.alert import Alerta
 from s3.commands import ProcessadorComandos
 from s3.envelope import decodificar
-from s3.ingestion import SCHEMA_ENTRADA, IngestorEventos
+from s3.ingestion import (
+    SCHEMA_CLIPE,
+    SCHEMA_ENTRADA,
+    IngestorClipes,
+    IngestorEventos,
+)
 from s3.publication import PublicadorAlertas
 
 "fronteira de assinatura com o barramento de eventos (B3)"
@@ -26,7 +31,8 @@ class AssinanteEventos(Protocol):
 
 class ConectorEventos:
     """
-    Liga um assinante de ods.s2.event ao ingestor do S3.
+    Liga um assinante de ods.s2.event (ou de ods.s4.clip)
+    ao ingestor correspondente do S3.
 
     Mensagem inválida é descartada e registrada em log,
     nunca processada "na tentativa" (Guia do Kafka, 4.3).
@@ -35,7 +41,7 @@ class ConectorEventos:
     def __init__(
         self,
         assinante: AssinanteEventos,
-        ingestor: IngestorEventos,
+        ingestor: IngestorEventos | IngestorClipes,
     ) -> None:
 
         self.assinante = assinante
@@ -91,17 +97,22 @@ class ConectorComandos:
 class DespachanteS3:
     """
     Um único assinante para todos os tópicos do S3:
-    envia ods.s2.event ao ingestor e o resto aos comandos.
+    envia ods.s2.event ao ingestor de eventos, ods.s4.clip
+    ao de clipes e o resto aos comandos.
     """
 
     def __init__(
         self,
         eventos: ConectorEventos,
         comandos: ConectorComandos,
+        clipes: ConectorEventos | None = None,
     ) -> None:
 
         self.eventos = eventos
         self.comandos = comandos
+
+        # Mesmo conector dos eventos: descarta inválidos com log.
+        self.clipes = clipes
 
     def conectar(self, assinante: AssinanteEventos) -> None:
         assinante.assinar(self.entregar)
@@ -115,5 +126,12 @@ class DespachanteS3:
 
         if schema == SCHEMA_ENTRADA:
             return self.eventos.entregar(mensagem)
+
+        if schema == SCHEMA_CLIPE:
+            if self.clipes is None:
+                logger.warning("ods.s4.clip sem conector; descartado")
+                return None
+
+            return self.clipes.entregar(mensagem)
 
         return self.comandos.entregar(mensagem)

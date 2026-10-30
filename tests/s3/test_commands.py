@@ -126,7 +126,7 @@ class TestAlertAction(BaseComandos):
                 self.assertEqual(resposta["payload"]["status"], "ERROR")
 
     def test_exemplo_documentado(self):
-        """jsons/comando_acao.json silencia o alerta citado."""
+        """dados/comando_acao.json silencia o alerta citado."""
 
         dados = ler_json("comando_acao.json")
         dados["payload"]["alert_id"] = self.alerta_id

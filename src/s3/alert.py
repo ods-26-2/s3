@@ -106,6 +106,9 @@ class Alerta:
     correlacao_id: Optional[str] = None       # correlation_id
     versao_roteamento: Optional[str] = None   # artifact_version
 
+    # Interno: a rota pediu o clipe do S4 (capture: true).
+    captura: bool = False
+
     def validar(self) -> None:
 
         _texto(self.alerta_id, "alert_id")

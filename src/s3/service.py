@@ -113,14 +113,14 @@ class AlertService:
             captura=rota.captura,
         )
 
-        # O clipe do S4 pode ter chegado antes do alerta.
-        pendente = self.repository.retirar_clipe_pendente(evento.evento_id)
-
-        if rota.captura and pendente is not None:
-            alerta.clip_id = pendente
-
-        # Salva o alerta e registra sua criação.
+        # Tudo na mesma transação: se salvar ou enfileirar falhar, o
+        # clipe que chegou antes do alerta volta para a fila de pendentes.
         with self.repository.transacao():
+            pendente = self.repository.retirar_clipe_pendente(evento.evento_id)
+
+            if rota.captura and pendente is not None:
+                alerta.clip_id = pendente
+
             self.repository.salvar(alerta)
             self._enfileirar(alerta)
 

@@ -1,4 +1,5 @@
 
+import json
 import logging
 from typing import Callable, Protocol
 
@@ -12,11 +13,25 @@ from s3.ingestion import (
     IngestorEventos,
 )
 from s3.publication import PublicadorAlertas
+from s3.rastreio import linha, registrar
 
 "fronteira de assinatura com o barramento de eventos (B3)"
 "o adaptador Kafka fica em kafka_adapter.py; aqui só o contrato interno"
 
 logger = logging.getLogger(__name__)
+
+
+def _envelope(mensagem: str | bytes) -> dict | None:
+    """O envelope da mensagem, se ela for JSON; senão None."""
+
+    try:
+        return decodificar(mensagem)
+    except ValueError:
+        return None
+
+
+def _descartar(mensagem: str | bytes, erro: Exception) -> None:
+    logger.warning(linha("descartada", _envelope(mensagem), motivo=str(erro)))
 
 
 class AssinanteEventos(Protocol):
@@ -58,7 +73,7 @@ class ConectorEventos:
         try:
             return self.ingestor.receber(mensagem)
         except ValueError as erro:
-            logger.warning("mensagem descartada: %s", erro)
+            _descartar(mensagem, erro)
             return None
 
 
@@ -86,10 +101,17 @@ class ConectorComandos:
         try:
             resposta = self.processador.receber(mensagem)
         except ValueError as erro:
-            logger.warning("comando descartado: %s", erro)
+            _descartar(mensagem, erro)
             return None
 
         self.publicador_respostas.publicar(resposta)
+
+        dados = json.loads(resposta)
+        registrar(
+            logger, "saida", dados,
+            status=dados["payload"].get("status"),
+            code=dados["payload"].get("error", {}).get("code"),
+        )
 
         return resposta
 
@@ -121,7 +143,7 @@ class DespachanteS3:
         try:
             schema = decodificar(mensagem).get("schema")
         except ValueError as erro:
-            logger.warning("mensagem descartada: %s", erro)
+            _descartar(mensagem, erro)
             return None
 
         if schema == SCHEMA_ENTRADA:

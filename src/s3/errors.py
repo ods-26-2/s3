@@ -14,6 +14,11 @@ INVALID_CHANNEL = "INVALID_CHANNEL"
 INVALID_MESSAGE = "INVALID_MESSAGE"
 INVALID_PAYLOAD = "INVALID_PAYLOAD"
 
+# Extensão do VER-3 para a entrega S3.4 da Sprint 3 ("ações não
+# autorizadas são rejeitadas"): o actor não tem permissão para a ação,
+# pelo arquivo de permissões da build. Não está na especificação.
+UNAUTHORIZED_ACTOR = "UNAUTHORIZED_ACTOR"
+
 
 class ErroS3(ValueError):
     """

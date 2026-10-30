@@ -1,4 +1,5 @@
 
+import json
 import logging
 from datetime import datetime
 from uuid import uuid4
@@ -10,6 +11,7 @@ from s3.errors import ALERT_NOT_FOUND, INVALID_TRANSITION, ErroS3
 from s3.history import RegistroHistorico
 from s3.output import alerta_para_json
 from s3.publication import PublicadorAlertas
+from s3.rastreio import registrar
 from s3.repository import AlertRepository
 from s3.routing import (
     ConfiguracaoRoteamento,
@@ -403,5 +405,13 @@ class AlertService:
 
             self.repository.marcar_enviada(id_saida)
             enviadas += 1
+
+            dados = json.loads(mensagem)
+            registrar(
+                logger, "saida", dados,
+                alert_id=dados["payload"].get("alert_id"),
+                state=dados["payload"].get("state"),
+                clip_id=dados["payload"].get("clip_id"),
+            )
 
         return enviadas

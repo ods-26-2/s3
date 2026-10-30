@@ -176,9 +176,9 @@ Transições [Do VER-3]:
 
 - **Resposta:** `{ "status": "OK", "alert_id": "…", "state": "…" }`.
 - **Erros [Oficial]:** `ALERT_NOT_FOUND`, `INVALID_TRANSITION`.
-- **Erros [Do VER-3]:** `INVALID_PAYLOAD`, `INVALID_MESSAGE`.
+- **Erros [Do VER-3]:** `INVALID_PAYLOAD`, `INVALID_MESSAGE` e `UNAUTHORIZED_ACTOR` (o `actor` não tem permissão para a ação).
 - **Desligamento manual do A5 (RF6)** = CLOSE [Do VER-3].
-- **Quem pode agir:** o backend da aplicação confere a pessoa antes de enviar.
+- **Quem pode agir [Do VER-3]:** cada build entrega ao S3 um arquivo de permissões (`--permissoes`) com quem pode dar ACKNOWLEDGE, MUTE e CLOSE, por `user:`, `role:` ou `group:`. Fora dele, a resposta é `UNAUTHORIZED_ACTOR` e nada muda. Modelo: [Aplicações/Permissões de ação (exemplo).json](Aplica%C3%A7%C3%B5es/Permiss%C3%B5es%20de%20a%C3%A7%C3%A3o%20(exemplo).json).
 
 ## `ods.s3.alerts.query` / `.reply`
 

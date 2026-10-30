@@ -1,0 +1,13 @@
+{
+  "message_type": "reply",
+  "message_id": "b4499ae9-c026-4514-b03c-a46a1f107832",
+  "schema": "ods.s3.alert.reply",
+  "schema_version": "1.0",
+  "producer": "S3",
+  "published_at": "2026-10-21T21:36:57.424Z",
+  "correlation_id": "4b5c6d7e-8f90-4a1b-8c2d-3e4f5a6b7c8d",
+  "payload": {
+    "status": "OK",
+    "alert_id": "4798aeff-d8f3-4aa6-b02d-66dc50601299"
+  }
+}

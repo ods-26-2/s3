@@ -31,6 +31,28 @@ Cada decisão tem uma origem:
 | 18 | Ordem de entrega | `ods.s3.alert` com chave de partição `alert_id` (já implementado). O consumidor ignora `sequence` menor para o mesmo alerta. O S2 deve usar `event_id` como chave | Provisória | TRA-1 (B3), VER-6 |
 | 19 | Remetente fora da lista | O B3 bloqueia no broker; o S3 não confere o `producer` dos comandos | Aprovada | TRA-1 (B3): configurar as permissões |
 
+## Respostas ao envio dos contratos (até 30/10/2026)
+
+Os contratos foram enviados às aplicações, ao barramento e às camadas de serviço.
+
+| Equipe | Resposta | O que muda no S3 |
+|---|---|---|
+| **A5** (VER-3) | Contratos ok | Nada. As decisões "Do VER-3" sobre o A5 (6, 7, 10 e 11) ficam confirmadas |
+| **A2** (VER-2) | Não vai usar o S3 | Nada no código. A2 era remetente possível de `alert.command` e `alerts.query` e consumidor opcional de `ods.s3.alert`; sai das verificações de integração |
+| **S4** (MOD-2) | Campos alinhados com a 6c; `event_id` é o mesmo do S2 (`null` em captura manual); o clipe sai **depois** do alerta, porque o S4 só publica após gravar o MP4; `media_uri` é referência lógica (`s4://…`), resolvida pelo S4 | Confirma o desenho atual: o S3 vincula o clipe numa republicação e não precisa do `clip_id` na criação. O S3 não guarda `media_uri`: o alerta leva só `clip_id`, e a aplicação pede o vídeo ao S4 |
+| Demais (A3, A7, S2, TRA-1, TRA-2) | Sem resposta | — |
+
+**Exemplo real do S4 (29/10/2026) passado pelo S3:** é rejeitado. Com as quatro correções abaixo, é aceito.
+
+| Problema na mensagem do S4 | Regra | O S4 já sabia? |
+|---|---|---|
+| Falta `captured_at` | Perfil EV-SERVIÇO (seção 3) | Não |
+| Falta `sequence` | Perfil EV-SERVIÇO (seção 3) | Não |
+| `session_id` = `exec-demo-1`, não é UUID | Seção 2, regra 3 | Não |
+| `clip_id` com prefixo `clip-`, não é UUID | Seção 2, regra 3 | Sim, está nas pendências do S4 |
+
+Recomendação ao S4, sem bloquear o S3: `correlation_id` = `event_id` na captura automática (linha de `ods.s4.clip`, seção 7).
+
 ## Fora dos contratos
 - **Persistência (SQLite) e fila de saída**, interna ao S3 e sem mudança de contrato (21/10/2026):
   - **Problema:** um reinício apagava alertas, histórico e deduplicação e zerava o `sequence`. Uma falha ao publicar perdia a mensagem. Uma queda entre criar o alerta e guardar a reply do comando fazia a reentrega criar um segundo alerta.

@@ -22,7 +22,7 @@ class TestIngestorEventos(unittest.TestCase):
         return self.ingestor.receber(json.dumps(dados))
 
     def test_receber_arquivo_entrada_json(self):
-        """O exemplo jsons/entrada.json deve virar alerta."""
+        """O exemplo dados/entrada.json deve virar alerta."""
 
         alerta = self.ingestor.receber(texto_json("entrada.json"))
 

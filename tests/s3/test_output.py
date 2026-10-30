@@ -27,7 +27,7 @@ class TestSaidaAlerta(unittest.TestCase):
         )
 
     def test_igual_ao_exemplo_documentado(self):
-        """jsons/entrada.json + routing_a5.json produzem jsons/saida.json."""
+        """dados/entrada.json + routing_a5.json produzem dados/saida.json."""
 
         roteador = RoteadorAlertas.de_artefato(
             ler_json("routing_a5.json"), "routing-a5-1"

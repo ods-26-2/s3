@@ -224,3 +224,6 @@ venv/
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm
+
+# Pacotes para enviar às equipes (gerados das pastas)
+*.zip

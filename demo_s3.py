@@ -24,7 +24,7 @@ from s3.routing import RoteadorAlertas
 from s3.service import AlertService
 from s3.subscription import ConectorComandos, ConectorEventos, DespachanteS3
 
-PASTA_JSONS = Path(__file__).resolve().parent / "jsons"
+PASTA_JSONS = Path(__file__).resolve().parent / "tests" / "s3" / "dados"
 
 
 class AssinanteDemo:
@@ -100,7 +100,7 @@ def main():
 
     print("Rota: PPE_NON_COMPLIANT → HIGH, role:supervisor, SCREEN + PUSH")
 
-    titulo("2. S2 publica ods.s2.event (jsons/entrada.json)")
+    titulo("2. S2 publica ods.s2.event (tests/s3/dados/entrada.json)")
 
     entrada = (PASTA_JSONS / "entrada.json").read_text(encoding="utf-8")
     alerta = assinante.publicar(entrada)

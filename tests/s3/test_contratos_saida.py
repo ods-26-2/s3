@@ -59,7 +59,7 @@ class BaseS3(unittest.TestCase):
 
 
 class TestExemplosOficiais(unittest.TestCase):
-    """Os arquivos de jsons/ seguem o contrato."""
+    """Os exemplos de tests/s3/dados/ seguem o contrato."""
 
     def test_entrada_s2(self):
         contrato.envelope(ler_json("entrada.json"), "EV-SERVIÇO")

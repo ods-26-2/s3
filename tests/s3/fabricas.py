@@ -11,7 +11,9 @@ from uuid import uuid4
 from s3.contracts import EventoQualificado
 from s3.routing import ConfiguracaoRoteamento, RoteadorAlertas
 
-PASTA_JSONS = Path(__file__).resolve().parents[2] / "jsons"
+# Exemplos oficiais (Especificação 1.0) usados pelos testes. Os exemplos
+# que vão para as outras equipes ficam em contratos/.
+PASTA_JSONS = Path(__file__).resolve().parent / "dados"
 
 FUTURO = datetime(2030, 1, 1, tzinfo=timezone.utc)
 

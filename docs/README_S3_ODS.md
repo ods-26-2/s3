@@ -39,7 +39,7 @@ Também existe um adaptador Kafka que segue o Guia de Uso do Kafka da TRA-1.
   - `ods.s2.event` só é aceito do produtor `S2`;
   - a paginação da consulta não repete alertas criados no mesmo milissegundo;
   - um alerta criado por comando sai sem `session_id` (nenhum valor é inventado); em 21/10/2026 isso passou a ser a regra proposta pelo VER-3 (pendência 5);
-  - novo `tests/s3/contrato.py` confere as mensagens publicadas e os exemplos de `jsons/` com regras escritas a partir da especificação.
+  - novo `tests/s3/contrato.py` confere as mensagens publicadas e os exemplos de `tests/s3/dados/` com regras escritas a partir da especificação.
 - **Não implementado, por depender de outras equipes:** consumo de `ods.session.started` e de `ods.artifact.published`, e conferência do `producer` dos comandos (pendências 8, 12 e 13 do README.md).
 
 Os nomes internos (`Alerta`, `EventoQualificado`, `evento_id`…) continuam em português. A tradução para os nomes do contrato fica só na borda: `contracts.py`, `output.py` e `commands.py`.
@@ -67,11 +67,11 @@ python -m pytest tests/s3 -q
 
 O que os testes cobrem:
 - envelope e horários;
-- leitura de `ods.s2.event`, incluindo o arquivo real `jsons/entrada.json`;
-- roteamento, incluindo o artefato `jsons/routing_a5.json`;
+- leitura de `ods.s2.event`, incluindo o exemplo `tests/s3/dados/entrada.json`;
+- roteamento, incluindo o artefato `tests/s3/dados/routing_a5.json`;
 - ciclo de vida e histórico;
 - deduplicação por `message_id` e por `event_id`;
-- saída igual a `jsons/saida.json`;
+- saída igual a `tests/s3/dados/saida.json`;
 - os três comandos, incluindo os arquivos de exemplo;
 - descarte de mensagem inválida com log;
 - adaptador Kafka com cliente falso.

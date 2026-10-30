@@ -4,7 +4,7 @@ Executa o S3 ligado ao Kafka.
     PowerShell:
         $env:PYTHONPATH = "src"
         $env:S3_KAFKA_BOOTSTRAP = "host:porta"
-        python -m s3 --routing jsons/routing_a5.json --tempo-limite 60
+        python -m s3 --routing contratos/Barramentos/ROUTING.json --tempo-limite 60
 
 Sem --routing (build sem S2, como a do A7), o S3 só atende
 comandos e consultas.

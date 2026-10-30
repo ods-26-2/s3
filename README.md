@@ -28,7 +28,7 @@ I1 → I9 → S2 (VER-6) ──ods.s2.event──► S3 ──ods.s3.alert──
 
 Quem envia cada comando, pela especificação (seção 9): `alert.command` e `alerts.query` vêm de A1, A2, A3, A5 e A7; `alert_action.command` vem só dos backends de A3, A5 e A7. O S3 consome S2, o artefato ROUTING e, desde 21/10/2026, `ods.s4.clip` (pendência 4). Não consome `ods.session.started`.
 
-Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
+Há exemplos completos de cada mensagem em [`contratos/`](contratos/), organizados por equipe (Aplicações, Barramentos, S2, S4), com a explicação em [`contratos/CONTRATOS_S3.md`](contratos/CONTRATOS_S3.md). Os testes usam os exemplos oficiais de `tests/s3/dados/`.
 
 ## Ciclo de vida do alerta
 
@@ -89,6 +89,7 @@ Há exemplos completos de cada mensagem em [`jsons/`](jsons/).
 | `demo_s3.py` | Demonstração com assinante e publicador falsos |
 | `tests/s3/` | Testes (`fabricas.py` monta mensagens válidas) |
 | `tests/s3/contrato.py` | Verificador escrito a partir da especificação, independente do código do S3 |
+| [`contratos/CONTRATOS_S3.md`](contratos/CONTRATOS_S3.md) | **Página dos contratos do S3**, com os nomes da arquitetura. Os exemplos JSON e o PDF de cada equipe ficam em `contratos/Aplicações/`, `contratos/Barramentos/` (nome do schema), `contratos/S2/` e `contratos/S4/` |
 | [`MATRIZ_CONTRATOS_S3.md`](docs/MATRIZ_CONTRATOS_S3.md) | Contratos, produtores, consumidores, campos, erros e situação de conformidade |
 | [`CHECKLIST_INTEGRACAO_S3.md`](docs/CHECKLIST_INTEGRACAO_S3.md) | Verificações com S2, A3, A5, A7, B1, B2 e B3; deduplicação e ordem |
 | [`DECISOES_S3.md`](docs/DECISOES_S3.md) | Decisão tomada em cada pendência, com a origem e com quem confirmar |
@@ -116,7 +117,7 @@ Os testes **não acessam o broker real**: usam assinante, publicador e cliente K
 $env:PYTHONPATH = "src"
 $env:S3_KAFKA_BOOTSTRAP = "<host:porta do broker>"   # ver Guia do Kafka da TRA-1
 $env:S3_KAFKA_GROUP_ID = "S3-alertas"                # opcional; este é o padrão
-python -m s3 --routing jsons/routing_a5.json --versao-routing routing-a5-1 --banco s3.sqlite3 --tempo-limite 60
+python -m s3 --routing contratos/Barramentos/ROUTING.json --versao-routing routing-a5-1 --banco s3.sqlite3 --tempo-limite 60
 
 # Build sem S2 (como a do A7): sem --routing, só comandos e consultas
 python -m s3 --tempo-limite 60

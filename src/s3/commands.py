@@ -1,5 +1,6 @@
 
 import json
+import logging
 
 from s3.alert import ESTADOS, SEVERIDADES
 from s3.envelope import (
@@ -13,10 +14,14 @@ from s3.envelope import (
 )
 from s3.errors import INVALID_MESSAGE, INVALID_PAYLOAD, ErroS3
 from s3.output import payload_alerta
+from s3.permissoes import PoliticaPermissoes
+from s3.rastreio import registrar
 from s3.service import AlertService
 
 "comandos e consultas"
 'Atende ods.s3.alert.command, ods.s3.alert_action.command e ods.s3.alerts.query'
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_CRIAR = "ods.s3.alert.command"
 SCHEMA_ACAO = "ods.s3.alert_action.command"
@@ -77,8 +82,16 @@ class ProcessadorComandos:
     recebe a mesma reply, sem novo efeito.
     """
 
-    def __init__(self, service: AlertService) -> None:
+    def __init__(
+        self,
+        service: AlertService,
+        permissoes: PoliticaPermissoes | None = None,
+    ) -> None:
         self.service = service
+
+        # Sem política, qualquer actor no formato user:<id> pode agir
+        # (a aplicação confere antes de enviar).
+        self.permissoes = permissoes
 
         self._tratadores = {
             SCHEMA_CRIAR: ("command", self._criar),
@@ -120,6 +133,7 @@ class ProcessadorComandos:
         anterior = repository.resposta_registrada(message_id)
 
         if anterior is not None:
+            registrar(logger, "entrada", dados, resultado="repetida")
             return json.dumps(anterior, ensure_ascii=False)
 
         # O efeito do comando, a fila de saída e a reply registrada
@@ -149,6 +163,17 @@ class ProcessadorComandos:
             # precisam devolver a mesma reply se repetidos.
             if message_type == "command":
                 repository.registrar_mensagem(message_id, resposta)
+
+        pedido = dados.get("payload") if isinstance(dados.get("payload"), dict) else {}
+
+        registrar(
+            logger, "entrada", dados,
+            action=pedido.get("action"),
+            resultado=corpo["status"],
+            code=corpo.get("error", {}).get("code"),
+            alert_id=corpo.get("alert_id") or pedido.get("alert_id"),
+            state=corpo.get("state"),
+        )
 
         self.service.despachar_saida()
 
@@ -196,6 +221,11 @@ class ProcessadorComandos:
             raise ErroS3(
                 INVALID_PAYLOAD, f"actor deve ser user:<id>: {autor!r}"
             )
+
+        # Antes de procurar o alerta: quem não pode agir não descobre
+        # se o alerta existe (UNAUTHORIZED_ACTOR, extensão do VER-3).
+        if self.permissoes is not None:
+            self.permissoes.conferir(autor, acao)
 
         if acao == "ACKNOWLEDGE":
             alerta = self.service.reconhecer_alerta(alerta_id, autor, motivo)

@@ -24,6 +24,7 @@ import logging
 from s3.commands import ProcessadorComandos
 from s3.ingestion import IngestorClipes, IngestorEventos
 from s3.kafka_adapter import AssinanteKafka, PublicadorKafka, topicos_entrada
+from s3.permissoes import PoliticaPermissoes
 from s3.repository_sqlite import SqliteAlertRepository
 from s3.routing import RoteadorAlertas
 from s3.service import AlertService
@@ -46,6 +47,13 @@ def main() -> None:
     parser.add_argument(
         "--versao-routing",
         help="artifact_version do ROUTING (padrão: nome do arquivo)",
+    )
+    parser.add_argument(
+        "--permissoes",
+        help=(
+            "Arquivo JSON com quem pode dar ACKNOWLEDGE, MUTE e CLOSE. "
+            "Sem ele, qualquer actor user:<id> pode agir"
+        ),
     )
     parser.add_argument(
         "--banco", default="s3.sqlite3",
@@ -71,6 +79,18 @@ def main() -> None:
     else:
         logging.info("sem ROUTING: só comandos e consultas")
 
+    permissoes = None
+
+    if argumentos.permissoes:
+        with open(argumentos.permissoes, encoding="utf-8") as arquivo:
+            permissoes = PoliticaPermissoes.de_artefato(
+                json.load(arquivo), argumentos.permissoes
+            )
+    else:
+        logging.warning(
+            "sem --permissoes: qualquer actor user:<id> pode reconhecer, silenciar e encerrar"
+        )
+
     repository = SqliteAlertRepository(argumentos.banco)
     publicador = PublicadorKafka()
     service = AlertService(
@@ -86,7 +106,7 @@ def main() -> None:
     assinante = AssinanteKafka(topicos=topicos_entrada(roteador is not None))
     DespachanteS3(
         ConectorEventos(assinante, IngestorEventos(service)),
-        ConectorComandos(assinante, ProcessadorComandos(service), publicador),
+        ConectorComandos(assinante, ProcessadorComandos(service, permissoes), publicador),
         ConectorEventos(assinante, IngestorClipes(service)),
     ).conectar(assinante)
 

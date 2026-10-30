@@ -1,12 +1,17 @@
 
+import logging
+
 from s3.alert import Alerta
 from s3.contracts import DescritorClipe, EventoQualificado
 from s3.envelope import PERFIL_EV_SERVICO, decodificar, validar_envelope
 from s3.errors import INVALID_MESSAGE, ErroS3
+from s3.rastreio import registrar
 from s3.service import AlertService
 
 'adaptador de JSON'
 'Recebe ods.s2.event do barramento e transforma em evento'
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_ENTRADA = "ods.s2.event"
 PRODUTOR_ENTRADA = "S2"
@@ -53,10 +58,12 @@ class IngestorEventos:
         repository = self.service.repository
 
         if repository.mensagem_processada(message_id):
+            registrar(logger, "entrada", dados, resultado="repetida")
             return None
 
         # 3. Construir e validar o evento.
         evento = EventoQualificado.de_mensagem(dados)
+        existia = repository.buscar_por_evento(evento.evento_id) is not None
 
         # 4. Encaminhar para o serviço. O alerta, a fila de saída e
         # o message_id são gravados juntos: se falhar, nada fica, e
@@ -64,6 +71,19 @@ class IngestorEventos:
         with repository.transacao():
             alerta = self.service.processar_evento_roteado(evento)
             repository.registrar_mensagem(message_id)
+
+        registrar(
+            logger, "entrada", dados,
+            event_id=evento.evento_id,
+            phase=evento.fase,
+            status=evento.status,
+            resultado=(
+                "sem_alerta" if alerta is None
+                else "alerta_existente" if existia
+                else "alerta_criado"
+            ),
+            alert_id=alerta.alerta_id if alerta else None,
+        )
 
         self.service.despachar_saida()
 
@@ -95,6 +115,7 @@ class IngestorClipes:
         repository = self.service.repository
 
         if repository.mensagem_processada(message_id):
+            registrar(logger, "entrada", dados, resultado="repetida")
             return None
 
         clipe = DescritorClipe.de_mensagem(dados)
@@ -102,6 +123,23 @@ class IngestorClipes:
         with repository.transacao():
             alerta = self.service.vincular_clipe(clipe)
             repository.registrar_mensagem(message_id)
+
+        if clipe.evento_id is None:
+            resultado = "ignorado_sem_evento"
+        elif alerta is None:
+            resultado = "pendente"
+        elif alerta.clip_id == clipe.clip_id:
+            resultado = "vinculado"
+        else:
+            resultado = "ignorado"
+
+        registrar(
+            logger, "entrada", dados,
+            event_id=clipe.evento_id,
+            clip_id=clipe.clip_id,
+            resultado=resultado,
+            alert_id=alerta.alerta_id if alerta else None,
+        )
 
         self.service.despachar_saida()
 

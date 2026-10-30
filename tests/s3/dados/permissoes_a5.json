@@ -1,0 +1,11 @@
+{
+  "members": {
+    "role:supervisor": ["user:maria", "user:joao"],
+    "role:tecnico-seguranca": ["user:ana"]
+  },
+  "actions": {
+    "ACKNOWLEDGE": ["role:supervisor", "role:tecnico-seguranca"],
+    "MUTE": ["role:supervisor"],
+    "CLOSE": ["role:supervisor"]
+  }
+}

@@ -83,16 +83,21 @@ def esperar_broker(endereco: str, prazo_s: float = 90) -> None:
             time.sleep(1)
 
 
-def zerar_topicos(endereco: str) -> None:
-    """Apaga e recria os tópicos do S3, com uma partição cada."""
+def zerar_topicos(endereco: str, apagar: bool = True) -> list[str]:
+    """
+    Apaga e recria os tópicos do S3, com uma partição cada.
+    Com apagar=False, só cria os que faltam. Retorna os criados.
+    """
 
     admin = AdminClient({"bootstrap.servers": endereco, **SILENCIO})
     todos = list(TOPICOS_ENTRADA) + list(SAIDAS)
 
     existentes = set(admin.list_topics(timeout=10).topics)
-    apagar = [t for t in todos if t in existentes]
-    if apagar:
-        for futuro in admin.delete_topics(apagar, operation_timeout=30).values():
+    if not apagar:
+        todos = [t for t in todos if t not in existentes]
+    elif existentes & set(todos):
+        apagados = [t for t in todos if t in existentes]
+        for futuro in admin.delete_topics(apagados, operation_timeout=30).values():
             futuro.result()
 
     # A exclusão termina em segundo plano: tenta criar até conseguir.
@@ -110,6 +115,8 @@ def zerar_topicos(endereco: str) -> None:
             if time.monotonic() > fim:
                 raise RuntimeError(f"não consegui recriar: {faltam}")
             time.sleep(1)
+
+    return todos
 
 
 def comando_docker() -> str:

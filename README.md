@@ -1,6 +1,6 @@
 # S3 — Alertas e Notificações | VER-3 | ODS 2026/2
 
-**Estado em 30/10/2026 — baseado no código de `componentes(5).zip`.** Referência: *Especificação de interfaces 1.0, arquitetura 6c*. Este documento distingue implementação local, teste automatizado e validação externa. **O S3 ainda não foi integrado ao broker oficial nem validado ponta a ponta com S2 e A5.**
+**Estado em 30/10/2026.** Referência: *Especificação de interfaces 1.0, arquitetura 6c*. Este documento distingue implementação local, teste automatizado e validação externa. **O S3 já rodou contra um Kafka local (Docker), mas ainda não foi integrado ao broker oficial nem validado ponta a ponta com o S2 e o A5 reais.**
 
 ## 1. Visão geral
 
@@ -29,7 +29,7 @@ A2 comunicou que **não pretende utilizar** o S3 nesta integração; isso não r
 - **Confiabilidade:** escrita transacional com outbox, reenvio após falha/reinício e deduplicação; o comportamento é de **entrega pelo menos uma vez**, exigindo deduplicação também no consumidor.
 - **Histórico:** `ods.s3.alerts.query / .reply` com filtros e paginação. Não há contrato público separado para consulta de toda a trilha de auditoria; ela é armazenada internamente.
 - **S4:** correlação assíncrona por `event_id`, incluindo clipes que chegam após o alerta. O alerta publica apenas `clip_id`, sem `media_uri`.
-- **Kafka:** adaptadores `kafka_adapter.py`, tópico provisório por schema, grupo configurável, commits manuais e interfaces exercitadas por clientes falsos. **Não há prova de entrega/consumo no Kafka oficial.**
+- **Kafka:** adaptadores `kafka_adapter.py`, tópico provisório por schema, grupo configurável, commits manuais e interfaces exercitadas por clientes falsos. Testado contra um Kafka local no Docker, com queda do broker e do S3 (`docs/TESTE_KAFKA_LOCAL.md`). **Não há prova de entrega/consumo no Kafka oficial.**
 
 ## 3. Organização do código
 
@@ -48,14 +48,16 @@ A2 comunicou que **não pretende utilizar** o S3 nesta integração; isso não r
 
 ## 4. Como executar e testar
 
-A partir da pasta `componentes/`, em PowerShell, com Python e dependências instaladas:
+Na raiz do repositório, em PowerShell, com Python e dependências instaladas:
 
 ```powershell
 $env:PYTHONPATH = "src"
 python -m pytest tests/s3 -q
 ```
 
-**Resultado conferido em 30/10/2026 sobre este ZIP:** `357 passed, 155 subtests passed` (0 falhas). Os testes cobrem persistência SQLite e recuperação por reinicialização, mas **não** demonstram broker real, execução dos canais SOUND/SCREEN/PUSH nem integração real ponta a ponta com S2 e aplicações.
+**Resultado conferido em 30/10/2026:** `384 passed, 167 subtests passed` (0 falhas). Nenhum teste da suíte acessa broker. Os testes cobrem persistência SQLite e recuperação por reinicialização, mas **não** demonstram broker real, execução dos canais SOUND/SCREEN/PUSH nem integração real ponta a ponta com S2 e aplicações.
+
+Fora da suíte, com Docker: `tools/teste_kafka_local.py` roda o S3 contra um Kafka local e simula S2, S4 e A5, inclusive com queda do broker e do S3 (`docs/TESTE_KAFKA_LOCAL.md`). `tools/kit_aplicacoes.py` deixa o backend de uma aplicação testar contra o S3 nesse Kafka (`docs/KIT_APLICACOES_KAFKA_LOCAL.md`). Os dois só aceitam `localhost`.
 
 A execução operacional prevista pelo código requer um broker configurado e um limite de execução:
 

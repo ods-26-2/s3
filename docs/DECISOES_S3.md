@@ -42,7 +42,7 @@ Os contratos foram enviados às aplicações, ao barramento e às camadas de ser
 | **S4** (MOD-2) | Campos alinhados com a 6c; `event_id` é o mesmo do S2 (`null` em captura manual); o clipe sai **depois** do alerta, porque o S4 só publica após gravar o MP4; `media_uri` é referência lógica (`s4://…`), resolvida pelo S4 | Confirma o desenho atual: o S3 vincula o clipe numa republicação e não precisa do `clip_id` na criação. O S3 não guarda `media_uri`: o alerta leva só `clip_id`, e a aplicação pede o vídeo ao S4 |
 | Demais (A3, A7, S2, TRA-1, TRA-2) | Sem resposta | — |
 
-**Exemplo real do S4 (29/10/2026) passado pelo S3:** é rejeitado. Com as quatro correções abaixo, é aceito.
+**Exemplo real do S4 (29/10/2026) passado pelo S3:** é rejeitado. Com as quatro correções abaixo, é aceito. Cada problema rejeita sozinho. O exemplo está guardado sem alteração em `tests/s3/dados/clipe_s4_real.json` e é coberto por `tests/s3/test_exemplo_s4.py`, inclusive o `"event_id": null` da captura manual (aceito e ignorado).
 
 | Problema na mensagem do S4 | Regra | O S4 já sabia? |
 |---|---|---|

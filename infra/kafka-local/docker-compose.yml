@@ -1,0 +1,15 @@
+# Kafka local para testar o S3 sem o broker da TRA-1 (Sprint 3, S3.2 e S3.6).
+#
+#   docker compose -f infra/kafka-local/docker-compose.yml up -d     # sobe
+#   docker compose -f infra/kafka-local/docker-compose.yml down      # apaga
+#
+# Um único nó em modo KRaft (sem ZooKeeper), com a configuração padrão da
+# imagem oficial: escuta em localhost:9092. Os tópicos do S3 são criados
+# pelo tools/teste_kafka_local.py. Não é o broker oficial do B3: nomes de
+# tópicos, partições e permissões aqui são só para o teste.
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: s3-kafka-local
+    ports:
+      - "9092:9092"

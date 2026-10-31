@@ -83,6 +83,41 @@ def esperar_broker(endereco: str, prazo_s: float = 90) -> None:
             time.sleep(1)
 
 
+def outros_s3(endereco: str) -> list[str]:
+    """Grupos de consumidores de S3 com membros ativos neste broker."""
+
+    from confluent_kafka import ConsumerGroupState
+
+    admin = AdminClient({"bootstrap.servers": endereco, **SILENCIO})
+    grupos = admin.list_consumer_groups(
+        states={ConsumerGroupState.STABLE, ConsumerGroupState.PREPARING_REBALANCING,
+                ConsumerGroupState.COMPLETING_REBALANCING},
+        request_timeout=10,
+    ).result()
+    return [g.group_id for g in grupos.valid if g.group_id.startswith("S3-alertas")]
+
+
+def exigir_s3_sozinho(endereco: str, prazo_s: float = 60) -> None:
+    """
+    Outro S3 ligado no mesmo Kafka (por exemplo, o do kit) também
+    responde aos comandos do teste, com o banco dele. Um S3 que acabou
+    de cair ainda aparece ativo por uns 45 s: espera antes de desistir.
+    """
+
+    fim = time.monotonic() + prazo_s
+    avisado = False
+    while grupos := outros_s3(endereco):
+        if time.monotonic() > fim:
+            sys.exit(
+                f"Outro S3 está ligado neste Kafka (grupo {', '.join(grupos)}). "
+                "Pare-o com Ctrl+C no terminal dele e rode o teste de novo."
+            )
+        if not avisado:
+            print(f"  ..  outro S3 ativo ({', '.join(grupos)}); esperando ele sair (até {prazo_s:.0f} s)", flush=True)
+            avisado = True
+        time.sleep(3)
+
+
 def zerar_topicos(endereco: str, apagar: bool = True) -> list[str]:
     """
     Apaga e recria os tópicos do S3, com uma partição cada.
@@ -312,10 +347,14 @@ def fluxo(apps: Aplicacoes) -> dict:
         contrato.envelope(resposta, "RPL")
         respostas[pedido["message_id"]] = resposta["payload"]
 
-    assert respostas[ack["message_id"]]["state"] == "ACKNOWLEDGED"
-    assert respostas[negado["message_id"]]["error"]["code"] == "UNAUTHORIZED_ACTOR"
-    assert respostas[mute["message_id"]]["state"] == "MUTED"
-    assert respostas[close["message_id"]]["state"] == "CLOSED"
+    def resultado(pedido):
+        payload = respostas[pedido["message_id"]]
+        return payload.get("state") or (payload.get("error") or {}).get("code")
+
+    for pedido, esperado in ((ack, "ACKNOWLEDGED"), (negado, "UNAUTHORIZED_ACTOR"),
+                             (mute, "MUTED"), (close, "CLOSED")):
+        acao = pedido["payload"]["action"]
+        assert resultado(pedido) == esperado, f"{acao}: esperava {esperado}, veio {resultado(pedido)}"
     passo("A5: ACK (maria), MUTE negado (ana → UNAUTHORIZED_ACTOR), MUTE e CLOSE (maria)")
 
     apps.esperar(
@@ -413,7 +452,8 @@ def main() -> int:
     conferir_local(endereco)
 
     print(f"Kafka local: {endereco}")
-    esperar_broker(endereco, prazo_s=15)
+    esperar_broker(endereco, prazo_s=60)
+    exigir_s3_sozinho(endereco)
     zerar_topicos(endereco)
     passo("tópicos do S3 recriados")
 

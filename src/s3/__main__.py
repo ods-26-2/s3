@@ -117,6 +117,11 @@ def main() -> None:
             # Reenvia a fila de saída quando o broker volta.
             periodica=service.despachar_saida,
         )
+    except KeyboardInterrupt:
+        # Ctrl+C: o assinante já fechou o consumidor (saiu do grupo) e o
+        # banco fecha abaixo. O que não foi confirmado volta na próxima partida.
+        logging.info("S3 parado com Ctrl+C")
+        return
     finally:
         repository.fechar()
 

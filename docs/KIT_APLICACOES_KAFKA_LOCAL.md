@@ -48,6 +48,19 @@ Opções: `--routing <arquivo>`, `--permissoes <arquivo>` (o de vocês),
 O S3 publica o alerta em `ods.s3.alert`; com o clipe, republica o mesmo
 alerta, no mesmo `state`, com o `clip_id`.
 
+`evento` também aceita `--zona`, `--equipamento` e `--duracao` (segundos).
+
+Sem o backend pronto, o kit também faz o papel do A5:
+
+```powershell
+.venv\Scripts\python tools/kit_aplicacoes.py aplicacao                       # recebe os alertas
+.venv\Scripts\python tools/kit_aplicacoes.py acao <alert_id> MUTE --actor user:maria
+.venv\Scripts\python tools/kit_aplicacoes.py consulta --estado CLOSED
+.venv\Scripts\python tools/kit_aplicacoes.py banco                           # o que o S3 gravou
+```
+
+Roteiro completo de demonstração: [ROTEIRO_DEMONSTRACAO_S3.md](ROTEIRO_DEMONSTRACAO_S3.md).
+
 ## 4. O que o backend faz
 
 | Direção | Tópico | Observação |

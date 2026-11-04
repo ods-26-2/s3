@@ -10,7 +10,7 @@ Cada decisão tem uma origem:
 
 | # | Tema | Decisão | Origem | Confirmar na fase de testes com |
 |---|---|---|---|---|
-| 1 | Nome dos tópicos | Um tópico por schema, com o nome do schema (`ods.s3.alert`, `ods.s3.alert.command`…). O `PublicadorKafka(topicos={...})` permite trocar sem mudar o código | Provisória | TRA-1 (B3) |
+| 1 | Nome dos tópicos | Um tópico por schema, com o nome do schema (`ods.s3.alert`, `ods.s3.alert.command`…), como na especificação. Não a nomenclatura do Guia do Kafka (`ods.alerta.emitido`…). **Confirmado pela TRA-1 em 04/11/2026** ("pode seguir o que está na especificação") | Aprovada | — |
 | 2 | Horários do envelope | `published_at` e `captured_at`, da especificação; não o `occurred_at` do Guia do Kafka | Provisória | TRA-1 |
 | 3 | Respostas dos comandos | Tópico `ods.s3.<nome>.reply`; quem pediu acha a sua pelo `correlation_id` | Provisória | TRA-1 (B3) |
 | 4 | `clip_id` | O S3 consome `ods.s4.clip` e preenche o `clip_id` quando a rota tem `capture: true` | Aprovada | TRA-1: incluir o S3 como consumidor de `ods.s4.clip` (seção 9) |
@@ -40,7 +40,8 @@ Os contratos foram enviados às aplicações, ao barramento e às camadas de ser
 | **A5** (VER-3) | Contratos ok | Nada. As decisões "Do VER-3" sobre o A5 (6, 7, 10 e 11) ficam confirmadas |
 | **A2** (VER-2) | Não vai usar o S3 | Nada no código. A2 era remetente possível de `alert.command` e `alerts.query` e consumidor opcional de `ods.s3.alert`; sai das verificações de integração |
 | **S4** (MOD-2) | Campos alinhados com a 6c; `event_id` é o mesmo do S2 (`null` em captura manual); o clipe sai **depois** do alerta, porque o S4 só publica após gravar o MP4; `media_uri` é referência lógica (`s4://…`), resolvida pelo S4 | Confirma o desenho atual: o S3 vincula o clipe numa republicação e não precisa do `clip_id` na criação. O S3 não guarda `media_uri`: o alerta leva só `clip_id`, e a aplicação pede o vídeo ao S4 |
-| Demais (A3, A7, S2, TRA-1, TRA-2) | Sem resposta | — |
+| **TRA-1** (B1/B3), 04/11/2026 | Contratos "aparentemente compatíveis"; o broker não tem autenticação (conexão direta em `34.66.235.91:9093`, endereço do Guia do Kafka); tópicos seguem a especificação. Os demais pontos ficam para a aula de 05/11 | Pendência 1 aprovada, sem mudança no código: o S3 já usa o nome do schema e conecta só com `bootstrap.servers`. Continuam abertos: 3 (tópico `.reply`), 5 e 9 na especificação e no validador, 17 (texto da regra 7), 18 (chave de partição) e 19 (ACL), além de quem cria os tópicos no broker |
+| Demais (A3, A7, S2, TRA-2) | Sem resposta | — |
 
 **Exemplo real do S4 (29/10/2026) passado pelo S3:** é rejeitado. Com as quatro correções abaixo, é aceito. Cada problema rejeita sozinho. O exemplo está guardado sem alteração em `tests/s3/dados/clipe_s4_real.json` e é coberto por `tests/s3/test_exemplo_s4.py`, inclusive o `"event_id": null` da captura manual (aceito e ignorado).
 

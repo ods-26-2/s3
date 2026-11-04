@@ -1,5 +1,9 @@
 # S3 — Alertas e Notificações | VER-3 | ODS 2026/2
 
+[![CI](https://github.com/ods-26-2/s3/actions/workflows/ci.yml/badge.svg)](https://github.com/ods-26-2/s3/actions/workflows/ci.yml)
+
+Servidor: [docs/PASSO_A_PASSO_SERVIDOR_S3.pdf](docs/PASSO_A_PASSO_SERVIDOR_S3.pdf) e `bash infra/servidor/instalar.sh <broker>`.
+
 **Estado em 30/10/2026.** Referência: *Especificação de interfaces 1.0, arquitetura 6c*. Este documento distingue implementação local, teste automatizado e validação externa. **O S3 já rodou contra um Kafka local (Docker), mas ainda não foi integrado ao broker oficial nem validado ponta a ponta com o S2 e o A5 reais.**
 
 ## 1. Visão geral

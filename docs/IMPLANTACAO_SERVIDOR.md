@@ -8,12 +8,13 @@ endereço temporário para testes).
 
 | Item | Valor |
 |---|---|
-| Sistema | Linux (ou qualquer um com Docker). Testado em Windows 11 |
+| Sistema | Linux (ou qualquer um com Docker). Testado em Windows 11 e na imagem Docker (Linux), contra o Kafka local, em 04/11/2026 |
 | Python | 3.10 ou mais novo, se rodar sem Docker |
 | Dependência | só `confluent-kafka` (`requirements.txt`) |
 | Rede | saída para `34.66.235.91:9093`. O S3 não abre porta: não precisa de entrada |
 | Disco | uma pasta com escrita para o SQLite (alertas, histórico, fila de saída); poucos MB |
-| Memória e CPU | pouca: um processo Python; parado, o laço só espera 1 s por mensagem |
+| Memória e CPU | medido no contêiner: 18 MB e 0,04% de CPU parado (o laço espera 1 s por mensagem). Imagem: 200 MB |
+| Parar | `docker stop` / `systemctl stop` (SIGTERM): sai em ~1 s, fechando o consumidor e o banco; ao religar, volta a processar em segundos |
 | Configuração | `S3_KAFKA_BOOTSTRAP` (obrigatória), `S3_KAFKA_GROUP_ID` (padrão `S3-alertas`), o arquivo de ROUTING e o de permissões |
 
 **Uma instância só.** Com o S3 no servidor, não rode outro S3 contra o mesmo

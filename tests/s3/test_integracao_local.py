@@ -13,6 +13,7 @@ Não é a integração com a aplicação real: o S2 e o A5 são simulados aqui.
 import json
 import os
 import shutil
+import signal
 import sys
 import tempfile
 import unittest
@@ -254,6 +255,37 @@ class TestFluxoS2S3A5(unittest.TestCase):
         # Outra partida não publica de novo.
         self.partida_s3(0)
         self.assertEqual(len(self.alertas()), 1)
+
+    def test_sigterm_encerra_fechando_consumidor_e_banco(self):
+        """docker stop / systemctl stop: o S3 sai sozinho, sem esperar o tempo limite."""
+
+        sinais = {}
+        consumidor = self.broker.consumidor("S3-alertas")
+        poll_original = consumidor.poll
+
+        def poll_com_sigterm(intervalo):
+            sinais[signal.SIGTERM](signal.SIGTERM, None)
+            return poll_original(intervalo)
+
+        consumidor.poll = poll_com_sigterm
+        fechado = mock.Mock(wraps=consumidor.close)
+        consumidor.close = fechado
+
+        argv = [
+            "s3", "--routing", os.path.join(DADOS, "routing_a5.json"),
+            "--banco", self.banco, "--tempo-limite", "60",
+        ]
+
+        with mock.patch.object(principal, "AssinanteKafka",
+                               lambda topicos: AssinanteKafka(topicos=topicos, consumidor=consumidor)), \
+                mock.patch.object(principal, "PublicadorKafka", lambda: PublicadorKafka(produtor=self.produtor_s3)), \
+                mock.patch.object(principal.signal, "signal", lambda numero, f: sinais.__setitem__(numero, f)), \
+                mock.patch.object(sys, "argv", argv), \
+                self.assertLogs(level="INFO") as logs:
+            principal.main()
+
+        fechado.assert_called_once()
+        self.assertTrue(any("SIGTERM; encerrando" in linha for linha in logs.output))
 
     def test_comando_repetido_depois_do_reinicio(self):
         """O mesmo comando, entregue de novo depois de uma partida, recebe a mesma resposta."""

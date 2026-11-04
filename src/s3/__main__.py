@@ -20,6 +20,7 @@ O broker de testes é pago e compartilhado: use sempre
 import argparse
 import json
 import logging
+import signal
 
 from s3.commands import ProcessadorComandos
 from s3.ingestion import IngestorClipes, IngestorEventos
@@ -109,6 +110,15 @@ def main() -> None:
         ConectorComandos(assinante, ProcessadorComandos(service, permissoes), publicador),
         ConectorEventos(assinante, IngestorClipes(service)),
     ).conectar(assinante)
+
+    def ao_sinal(numero, _quadro):
+        # `docker stop` e `systemctl stop` mandam SIGTERM: o laço termina a
+        # volta atual e sai, fechando o consumidor (o Kafka libera o lugar
+        # no grupo na hora) e o banco, como no Ctrl+C.
+        logging.info("S3 recebeu %s; encerrando", signal.Signals(numero).name)
+        assinante.parar()
+
+    signal.signal(signal.SIGTERM, ao_sinal)
 
     try:
         entregues = assinante.executar(

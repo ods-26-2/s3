@@ -1,0 +1,21 @@
+{
+  "message_type": "event",
+  "message_id": "80d5ea93-4227-4595-acdf-09e365d397d4",
+  "schema": "ods.s4.clip",
+  "schema_version": "1.0",
+  "producer": "S4",
+  "published_at": "2026-10-29T18:10:10.917Z",
+  "session_id": "exec-demo-1",
+  "source_id": "cam0",
+  "payload": {
+    "clip_id": "clip-620d6d79-6544-4ded-8c56-599157ec7005",
+    "event_id": "6d9f2b1c-3e4a-4b5c-8d6e-7f8a9b0c1d2e",
+    "media_type": "CLIP",
+    "media_uri": "s4://clips/a2a7b0c0-886e-4b9c-8df6-f6a23f2abdc4.mp4",
+    "start_at": "2026-10-29T18:10:10.917Z",
+    "end_at": "2026-10-29T18:10:10.917Z",
+    "points_of_interest": [],
+    "hash_sha256": "7c82398b304295e06661b0ce868408f9801142520a11f7aab35b42e9952c777d",
+    "expires_at": "2026-10-29T18:10:10.917Z"
+  }
+}

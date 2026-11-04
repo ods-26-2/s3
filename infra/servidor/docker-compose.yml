@@ -1,0 +1,32 @@
+# S3 no servidor, ligado ao broker do projeto.
+#
+#   S3_KAFKA_BOOTSTRAP=34.66.235.91:9093 docker compose -f infra/servidor/docker-compose.yml up -d --build
+#   docker compose -f infra/servidor/docker-compose.yml logs -f s3     # uma linha por mensagem
+#   docker compose -f infra/servidor/docker-compose.yml down           # para (o volume fica)
+#
+# O endereço do broker é obrigatório e não tem valor padrão, para ninguém
+# ligar no broker pago por engano. O broker é compartilhado pelos 15 squads:
+# combine com a TRA-1 antes de deixar o S3 ligado.
+services:
+  s3:
+    build:
+      context: ../..
+    image: ods-s3
+    container_name: ods-s3
+    restart: unless-stopped
+    environment:
+      S3_KAFKA_BOOTSTRAP: ${S3_KAFKA_BOOTSTRAP:?defina S3_KAFKA_BOOTSTRAP com o endereço do broker (host:porta)}
+      S3_KAFKA_GROUP_ID: ${S3_KAFKA_GROUP_ID:-S3-alertas}
+    volumes:
+      - s3-dados:/dados
+      # Para outra configuração, descomente e aponte para os arquivos da aplicação:
+      # - ./config/routing.json:/config/routing.json:ro
+      # - ./config/permissoes.json:/config/permissoes.json:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  s3-dados:

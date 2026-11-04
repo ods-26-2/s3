@@ -337,6 +337,35 @@ class TestAtomicidade(BaseArquivo):
         self.assertEqual(resposta["payload"]["status"], "OK")
         self.assertEqual(len(service.consultar_alertas()[0]), 1)
 
+    def test_falha_ao_salvar_nao_perde_o_clipe_pendente(self):
+        """
+        O clipe chegou antes do alerta e a gravação do alerta falha:
+        o clipe continua pendente (antes, saía da fila e se perdia
+        quando processar_evento era chamado fora do ingestor).
+        """
+
+        from s3.contracts import DescritorClipe, EventoQualificado
+        from test_clipes import mensagem_clipe
+
+        service, _, _ = self.abrir()
+        mensagem = mensagem_evento()
+        evento_id = mensagem["payload"]["event_id"]
+        clipe = DescritorClipe.de_mensagem(mensagem_clipe({"event_id": evento_id}))
+        service.vincular_clipe(clipe)
+
+        evento = EventoQualificado.de_mensagem(mensagem)
+        rota = service.roteador.resolver(evento)
+
+        with mock.patch.object(service.repository, "salvar", side_effect=RuntimeError("disco")):
+            with self.assertRaises(RuntimeError):
+                service.processar_evento(evento, rota)
+
+        self.assertIsNone(service.repository.buscar_por_evento(evento_id))
+
+        service, _, _ = self.reiniciar()
+
+        self.assertEqual(service.repository.retirar_clipe_pendente(evento_id), clipe.clip_id)
+
     def test_erro_de_regra_nao_desfaz_a_reply(self):
         """INVALID_TRANSITION: nada muda, mas a reply de erro fica guardada."""
 

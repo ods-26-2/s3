@@ -1,0 +1,15 @@
+# A imagem só precisa de src/, requirements.txt e da configuração de contratos/.
+.git
+.venv
+.pytest_cache
+**/__pycache__
+*.sqlite3*
+htmlcov
+.coverage*
+tests
+tools
+docs
+infra
+dados
+demo_s3.py
+contratos/**/*.pdf

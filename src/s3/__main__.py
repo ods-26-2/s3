@@ -25,7 +25,13 @@ import signal
 
 from s3.commands import ProcessadorComandos
 from s3.ingestion import IngestorClipes, IngestorEventos
-from s3.kafka_adapter import AssinanteKafka, PublicadorKafka, topicos_entrada
+from s3.kafka_adapter import (
+    TOPICOS_SAIDA,
+    AssinanteKafka,
+    PublicadorKafka,
+    garantir_topicos,
+    topicos_entrada,
+)
 from s3.permissoes import PoliticaPermissoes
 from s3.repository_sqlite import SqliteAlertRepository
 from s3.routing import RoteadorAlertas
@@ -71,6 +77,13 @@ def main() -> None:
             "Quem pode mandar comandos e consultas ao S3, separado por "
             "vírgula (ex.: A3,A5,A7). Padrão: a variável "
             f"{VARIAVEL_PRODUTORES}; vazio = qualquer produtor"
+        ),
+    )
+    parser.add_argument(
+        "--criar-topicos", action="store_true",
+        help=(
+            "Na partida, cria no broker os tópicos do S3 que faltarem "
+            "(a imagem Docker liga; a TRA-1 liberou em 05/11/2026)"
         ),
     )
     parser.add_argument("--max-mensagens", type=int)
@@ -129,7 +142,21 @@ def main() -> None:
     if reenviadas:
         logging.info("fila de saída: %d mensagem(ns) reenviada(s)", reenviadas)
 
-    assinante = AssinanteKafka(topicos=topicos_entrada(roteador is not None))
+    topicos = topicos_entrada(roteador is not None)
+
+    if argumentos.criar_topicos:
+        # Antes de assinar: tópico criado depois pode levar até 5 min
+        # para ser percebido. Falhar aqui não impede o S3 de ligar.
+        try:
+            criados = garantir_topicos(topicos=topicos + TOPICOS_SAIDA)
+            logging.info(
+                "tópicos do S3: %s",
+                f"criados {', '.join(criados)}" if criados else "todos já existiam",
+            )
+        except Exception as erro:
+            logging.warning("não foi possível conferir os tópicos no broker: %s", erro)
+
+    assinante = AssinanteKafka(topicos=topicos)
     DespachanteS3(
         ConectorEventos(assinante, IngestorEventos(service)),
         ConectorComandos(assinante, ProcessadorComandos(service, permissoes, produtores), publicador),

@@ -134,7 +134,7 @@ class TestFluxoS2S3A5(unittest.TestCase):
         self.s2 = PublicadorKafka(produtor=self.broker.produtor())
         self.a5 = PublicadorKafka(produtor=self.broker.produtor())
 
-    def partida_s3(self, mensagens):
+    def partida_s3(self, mensagens, *extras):
         """Uma execução do python -m s3, até processar `mensagens` mensagens."""
 
         argv = [
@@ -145,6 +145,7 @@ class TestFluxoS2S3A5(unittest.TestCase):
             "--banco", self.banco,
             "--max-mensagens", str(mensagens),
             "--tempo-limite", "5",
+            *extras,
         ]
 
         def assinante(topicos):
@@ -307,6 +308,40 @@ class TestFluxoS2S3A5(unittest.TestCase):
         self.assertEqual(respostas[de_a2["message_id"]]["error"]["code"], "INVALID_MESSAGE")
         self.assertEqual(respostas[de_a5["message_id"]]["state"], "ACKNOWLEDGED")
         self.assertEqual([a["payload"]["state"] for a in self.alertas()], ["CREATED", "ACKNOWLEDGED"])
+
+    def test_criar_topicos_na_partida(self):
+        """Na imagem (--criar-topicos), os tópicos são conferidos antes de assinar."""
+
+        chamadas = []
+        with mock.patch.object(principal, "garantir_topicos",
+                               lambda topicos: chamadas.append(topicos) or ["ods.s3.alert"]), \
+                self.assertLogs(level="INFO") as logs:
+            self.partida_s3(0, "--criar-topicos")
+
+        [topicos] = chamadas
+        self.assertIn("ods.s2.event", topicos)
+        self.assertIn("ods.s3.alert.reply", topicos)
+        self.assertTrue(any("criados ods.s3.alert" in linha for linha in logs.output))
+
+    def test_broker_fora_do_ar_ao_criar_topicos_nao_impede_o_s3(self):
+        def falha(topicos):
+            raise RuntimeError("broker não respondeu")
+
+        evento = mensagem_evento()
+        self.s2.publicar(json.dumps(evento))
+
+        with mock.patch.object(principal, "garantir_topicos", falha), \
+                self.assertLogs(level="WARNING") as logs:
+            self.partida_s3(1, "--criar-topicos")
+
+        self.assertTrue(any("não foi possível conferir os tópicos" in linha for linha in logs.output))
+        self.assertEqual(len(self.alertas()), 1)
+
+    def test_sem_a_opcao_nao_toca_nos_topicos(self):
+        with mock.patch.object(principal, "garantir_topicos", mock.Mock()) as garantir:
+            self.partida_s3(0)
+
+        garantir.assert_not_called()
 
     def test_comando_repetido_depois_do_reinicio(self):
         """O mesmo comando, entregue de novo depois de uma partida, recebe a mesma resposta."""

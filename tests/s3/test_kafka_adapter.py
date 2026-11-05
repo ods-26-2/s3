@@ -13,10 +13,12 @@ from unittest import mock
 from s3.kafka_adapter import (
     TOPICOS_COMANDOS,
     TOPICOS_ENTRADA,
+    TOPICOS_S3,
     VARIAVEL_BROKER,
     AssinanteKafka,
     PublicadorKafka,
     endereco_broker,
+    garantir_topicos,
     topicos_entrada,
 )
 
@@ -237,6 +239,67 @@ class TestPublicadorKafka(unittest.TestCase):
 
         with self.assertRaises(ConnectionError):
             publicador.publicar(json.dumps({"schema": "ods.s3.alert"}))
+
+
+class FuturoFalso:
+    def __init__(self, erro=None):
+        self.erro = erro
+
+    def result(self):
+        if self.erro:
+            raise self.erro
+
+
+class AdminFalso:
+    """Imita o AdminClient: guarda o que seria criado, sem broker."""
+
+    def __init__(self, existentes=(), falhas=()):
+        self.existentes = {t: None for t in existentes}
+        self.falhas = set(falhas)
+        self.pedidos = []
+
+    def list_topics(self, timeout=None):
+        return mock.Mock(topics=self.existentes)
+
+    def create_topics(self, novos):
+        self.pedidos.extend(novos)
+        return {
+            n.topic: FuturoFalso(RuntimeError("recusado") if n.topic in self.falhas else None)
+            for n in novos
+        }
+
+
+class TestGarantirTopicos(unittest.TestCase):
+
+    def test_cria_so_os_que_faltam(self):
+        admin = AdminFalso(existentes=["ods.s2.event", "ods.s3.alert"])
+
+        criados = garantir_topicos(admin=admin)
+
+        self.assertEqual(len(TOPICOS_S3), 9)
+        self.assertEqual(set(criados), set(TOPICOS_S3) - {"ods.s2.event", "ods.s3.alert"})
+        # Partições e réplicas no padrão do broker.
+        self.assertEqual({(n.num_partitions, n.replication_factor) for n in admin.pedidos}, {(-1, -1)})
+
+    def test_nada_a_criar(self):
+        admin = AdminFalso(existentes=TOPICOS_S3)
+
+        self.assertEqual(garantir_topicos(admin=admin), [])
+        self.assertEqual(admin.pedidos, [])
+
+    def test_falha_num_topico_nao_impede_os_outros(self):
+        admin = AdminFalso(falhas=["ods.s4.clip"])
+
+        with self.assertLogs("s3.kafka_adapter", level="WARNING"):
+            criados = garantir_topicos(admin=admin)
+
+        self.assertNotIn("ods.s4.clip", criados)
+        self.assertEqual(len(criados), len(TOPICOS_S3) - 1)
+
+    def test_lista_de_topicos_escolhida(self):
+        admin = AdminFalso()
+
+        self.assertEqual(garantir_topicos(admin=admin, topicos=("ods.s3.alert",)), ["ods.s3.alert"])
 
 
 if __name__ == "__main__":

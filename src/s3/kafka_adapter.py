@@ -16,9 +16,8 @@ VARIAVEL_GRUPO = "S3_KAFKA_GROUP_ID"
 GRUPO_PADRAO = "S3-alertas"
 
 # Um tópico por schema, com o nome do schema (Especificação 1.0,
-# frente B3). Decisão provisória do VER-3: o Guia do Kafka sugere
-# outra nomenclatura (ods.alerta.emitido...), a confirmar com o
-# TRA-1 na fase de testes. Para trocar, passe o mapa schema → tópico.
+# frente B3), confirmado pela TRA-1 em 04/11/2026. Para trocar,
+# passe o mapa schema → tópico.
 TOPICOS_EVENTOS = (
     "ods.s2.event",
     "ods.s4.clip",
@@ -53,6 +52,58 @@ def endereco_broker(endereco: str | None = None) -> str:
         )
 
     return endereco
+
+
+TOPICOS_SAIDA = (
+    "ods.s3.alert",
+    "ods.s3.alert.reply",
+    "ods.s3.alert_action.reply",
+    "ods.s3.alerts.reply",
+)
+
+TOPICOS_S3 = TOPICOS_ENTRADA + TOPICOS_SAIDA
+
+
+def garantir_topicos(
+    endereco: str | None = None,
+    admin: object | None = None,
+    topicos: tuple[str, ...] = TOPICOS_S3,
+) -> list[str]:
+    """
+    Cria os tópicos do S3 que ainda não existem e devolve os criados.
+
+    Um tópico criado depois que o consumidor já assinou pode levar até
+    5 min para ser percebido (intervalo padrão de metadados do cliente);
+    criando antes de assinar, o S3 começa a ler na hora. A TRA-1 liberou
+    os squads para criar tópicos (05/11/2026). Partições e réplicas ficam
+    no padrão do broker (-1). Tópico que já existe não é tocado.
+
+    admin: injetável nos testes; criado sob demanda na execução.
+    """
+
+    if admin is None:
+        from confluent_kafka.admin import AdminClient
+
+        admin = AdminClient({"bootstrap.servers": endereco_broker(endereco)})
+
+    existentes = admin.list_topics(timeout=15).topics
+    faltam = [t for t in topicos if t not in existentes]
+
+    if not faltam:
+        return []
+
+    from confluent_kafka.admin import NewTopic
+
+    criados = []
+    for topico, futuro in admin.create_topics([NewTopic(t, -1, -1) for t in faltam]).items():
+        try:
+            futuro.result()
+            criados.append(topico)
+        except Exception as erro:
+            # Outro processo pode ter criado no meio do caminho.
+            logger.warning("tópico %s não foi criado: %s", topico, erro)
+
+    return criados
 
 
 class AssinanteKafka:

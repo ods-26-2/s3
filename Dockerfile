@@ -2,15 +2,17 @@
 #
 #   docker build -t ods-s3 .
 #
-# Roda o `python -m s3` ligado ao broker de S3_KAFKA_BOOTSTRAP (obrigatório,
-# nunca fixo na imagem). Alertas, histórico e fila de saída ficam no SQLite
-# em /dados: monte um volume ali para não perder nada ao recriar o contêiner.
-# Passo a passo: docs/IMPLANTACAO_SERVIDOR.md.
+# Roda o `python -m s3` ligado ao broker de S3_KAFKA_BOOTSTRAP. O padrão é o
+# Kafka da Jetson (172.18.4.56:9092, rede do DComp), como pediu o professor;
+# outro broker: -e S3_KAFKA_BOOTSTRAP=host:porta. Alertas, histórico e fila de
+# saída ficam no SQLite em /dados: monte um volume ali para não perder nada ao
+# recriar o contêiner. Para a equipe de implantação: docs/IMPLANTACAO_EQUIPE.md.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app/src
+    PYTHONPATH=/app/src \
+    S3_KAFKA_BOOTSTRAP=172.18.4.56:9092
 
 WORKDIR /app
 
@@ -33,9 +35,10 @@ RUN useradd --create-home --uid 1000 s3 && mkdir /dados && chown s3 /dados
 USER s3
 VOLUME ["/dados"]
 
-# --tempo-limite: o S3 sai sozinho a cada 24 h (com o consumidor fechado e o
-# banco salvo) e a política de reinício do contêiner o liga de novo.
+# Roda continuamente (--tempo-limite de 10 anos: o S3 exige um limite, pensado
+# para o broker pago da nuvem). --criar-topicos: cria os tópicos do S3 que
+# faltarem antes de assinar. Reinício (always/unless-stopped) só para quedas.
 ENTRYPOINT ["python", "-m", "s3"]
 CMD ["--routing", "/config/routing.json", "--versao-routing", "routing-a5-1", \
      "--permissoes", "/config/permissoes.json", \
-     "--banco", "/dados/s3.sqlite3", "--tempo-limite", "86400"]
+     "--banco", "/dados/s3.sqlite3", "--criar-topicos", "--tempo-limite", "315360000"]

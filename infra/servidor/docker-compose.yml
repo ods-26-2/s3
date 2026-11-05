@@ -5,9 +5,8 @@
 #   docker compose -f infra/servidor/docker-compose.yml logs -f s3     # uma linha por mensagem
 #   docker compose -f infra/servidor/docker-compose.yml down           # para (o volume fica)
 #
-# O endereço do broker é obrigatório e não tem valor padrão, para ninguém
-# ligar no broker errado por engano. O broker é compartilhado pelos squads
-# (Kafka da Jetson, 172.18.4.56:9092, só na rede do DComp).
+# Sem .env nem variável, usa o Kafka da Jetson (172.18.4.56:9092, só na rede
+# do DComp), como pediu o professor. O broker é compartilhado pelos squads.
 services:
   s3:
     build:
@@ -16,7 +15,7 @@ services:
     container_name: ods-s3
     restart: unless-stopped
     environment:
-      S3_KAFKA_BOOTSTRAP: ${S3_KAFKA_BOOTSTRAP:?defina S3_KAFKA_BOOTSTRAP com o endereço do broker (host:porta)}
+      S3_KAFKA_BOOTSTRAP: ${S3_KAFKA_BOOTSTRAP:-172.18.4.56:9092}
       S3_KAFKA_GROUP_ID: ${S3_KAFKA_GROUP_ID:-S3-alertas}
       # Quem pode mandar comandos ao S3 (o broker não tem autenticação).
       # Vazio = qualquer produtor. Para ligar, ponha no infra/servidor/.env:

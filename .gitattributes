@@ -1,0 +1,5 @@
+# Scripts e arquivos lidos no Linux (servidor, contêiner, CI) sempre com LF,
+# mesmo com core.autocrlf=true no Windows: bash não aceita CRLF.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf

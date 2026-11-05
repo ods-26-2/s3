@@ -21,7 +21,36 @@ endereço temporário para testes).
 broker (nem na sua máquina): dois S3 respondem aos mesmos comandos, cada um
 com o seu banco, e a aplicação recebe respostas contraditórias.
 
-## Opção A — Docker (recomendada)
+## Jeito mais rápido — script de instalação (Ubuntu/Debian)
+
+```bash
+git clone https://github.com/ods-26-2/s3.git && cd s3
+bash infra/servidor/instalar.sh 34.66.235.91:9093
+```
+
+O `infra/servidor/instalar.sh` instala o Docker se faltar, guarda o broker em
+`infra/servidor/.env` (fora do git), constrói e liga o `ods-s3`, confere se os
+9 tópicos do S3 existem no broker (só lê a lista) e mostra o log. Testado em
+04/11/2026 num Ubuntu 24.04 limpo, sem Docker, contra um Kafka de teste: o S3
+instalado processou um evento e religou depois de `down`/`up` lendo o `.env`.
+Para atualizar: `bash infra/servidor/instalar.sh 34.66.235.91:9093 --atualizar`.
+
+**Verificação mínima no broker** (uma vez, na janela combinada com a TRA-1):
+
+```bash
+docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
+```
+
+Faz o papel do A5: confere os 9 tópicos, cria um alerta de teste por comando
+("[TESTE S3]"), espera o `ods.s3.alert`, dá ACKNOWLEDGE e CLOSE como
+`user:maria` (o alerta de teste não fica aberto nas aplicações) e consulta o
+histórico. São 4 comandos e 1 consulta; os consumidores começam do fim dos
+tópicos e tudo termina em 60 s. Não publica em `ods.s2.event`. Testado contra o
+Kafka local em 04/11/2026: passou em 4 s. Se o S3 estiver desligado, falha com
+"não chegou a resposta", e o comando de teste fica no tópico: o S3 cria esse
+alerta quando ligar (encerre-o com CLOSE).
+
+## Opção A — Docker, à mão
 
 No servidor, com o repositório clonado (`git clone https://github.com/ods-26-2/s3.git`):
 
@@ -74,6 +103,9 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload && sudo systemctl enable --now ods-s3
 journalctl -u ods-s3 -f
 ```
+
+Passo a passo em PDF, com o que já foi feito: [PASSO_A_PASSO_SERVIDOR_S3.pdf](PASSO_A_PASSO_SERVIDOR_S3.pdf)
+(gerado por `tools/gerar_pdf_servidor.py`).
 
 ## Como conferir que está funcionando
 

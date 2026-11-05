@@ -7,7 +7,8 @@
 htmlcov
 .coverage*
 tests
-tools
+tools/*
+!tools/verificar_broker.py
 docs
 infra
 dados

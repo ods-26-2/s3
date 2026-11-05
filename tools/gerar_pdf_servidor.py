@@ -30,7 +30,7 @@ from reportlab.platypus import (
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAIDA = os.path.join(RAIZ, "docs", "PASSO_A_PASSO_SERVIDOR_S3.pdf")
 DATA = f"{datetime.date.today():%d/%m/%Y}"
-BROKER = "34.66.235.91:9093"
+BROKER = "172.18.4.56:9092"  # Kafka da Jetson, só na rede do DComp (e-mail do professor)
 COMPOSE = "infra/servidor/docker-compose.yml"
 
 
@@ -131,39 +131,51 @@ def etapa(numero, nome, situacao, onde, *conteudo):
 
 
 # Situação de cada etapa: atualize aqui quando avançar.
+# Imagem ARM: atualize depois de testar (docker buildx, emulação arm64).
+ARM_SITUACAO = FEITO
+ARM_DETALHE = "05/11: imagem arm64 construída e rodada por emulação; passou na verificação inteira. Arquivo para levar: ods-s3-arm64.tar (47 MB)"
+ARM_TABELA = tabela(["No teste em arm64 (05/11, emulação no Docker Desktop)", "Resultado"], [
+    ["Construir a imagem para linux/arm64", "ok, em 96 s"],
+    ["Dentro do contêiner", "aarch64, Python 3.12, librdkafka 2.16"],
+    ["Rodar o S3 da imagem arm64 contra o Kafka local e passar na verificação", "tudo ok (4 comandos, 1 consulta)"],
+    ["Arquivo para a Jetson sem internet", "ods-s3-arm64.tar, 47 MB, nome ods-s3:latest, linux/arm64"],
+], [9, 8.5])
+
 ETAPAS = [
-    ("Código pronto e testado", FEITO, "Imagem Docker testada contra o Kafka local em 04/11; 385 testes passando"),
-    ("Script de instalação testado", FEITO, "infra/servidor/instalar.sh rodado num Ubuntu 24.04 limpo em 04/11: instalou o Docker, ligou o S3 e processou um evento"),
-    ("Verificação mínima no broker", FEITO, "tools/verificar_broker.py, dentro da imagem; passou contra o Kafka local em 4 s"),
-    ("Integração contínua (GitHub Actions)", FEITO, "Testes, cobertura e imagem a cada push; a primeira execução no GitHub passou (04/11, commit ea1ae2d)"),
-    ("Juntar na main", FALTA, f"A main ({COMMIT}) já tem script, verificação e CI; falta a criação de tópicos de 05/11"),
-    ("Descobrir o servidor e como entrar nele", FALTA, "Com quem pediu o S3 no servidor"),
-    ("Confirmar dois pontos com a TRA-1", FEITO, "05/11: livres para criar tópicos (e o broker cria sozinho); o S3 pode ficar ligado"),
-    ("Entrar no servidor e rodar o script", FALTA, "No servidor: 3 comandos, uns 3 minutos"),
-    ("Conferir e rodar a verificação no broker", FALTA, "No servidor, logo depois do script"),
+    ("Código pronto e testado", FEITO, "Imagem Docker testada contra o Kafka local; 394 testes passando"),
+    ("Script de instalação testado", FEITO, "Num Ubuntu 24.04 limpo: instalou o Docker, criou os 9 tópicos num Kafka vazio, ligou o S3 e passou na verificação"),
+    ("Verificação mínima no broker", FEITO, "tools/verificar_broker.py, dentro da imagem; passou contra Kafka de teste"),
+    ("Integração contínua (GitHub Actions)", FEITO, "Testes, cobertura e imagem a cada push; passando no GitHub"),
+    ("Broker da Jetson", FEITO, f"E-mail do professor: {BROKER}, só na rede do DComp, a partir de 06/11. Nenhuma mudança no código"),
+    ("Imagem para ARM (Jetson)", ARM_SITUACAO, ARM_DETALHE),
+    ("Juntar na main", FALTA, "Ajustes para a Jetson (compose, --sem-construir, documentos)"),
+    ("Acesso à Jetson", FALTA, "Usuário e SSH, se tem Docker e internet (professor / TRA-1)"),
+    ("Entrar na Jetson e rodar o script", FALTA, "De dentro da rede do DComp: 3 comandos, uns 3 minutos"),
+    ("Conferir e rodar a verificação no broker", FALTA, "Na Jetson, logo depois do script; tirar a captura"),
 ]
 
 historia = [
-    p("S3 — Passo a passo para rodar no servidor", titulo),
+    p("S3 — Passo a passo para rodar no servidor (Jetson)", titulo),
     Spacer(1, 3),
-    p("Squad VER-3 · Componente S3 — Alertas e Notificações · Broker do projeto (Guia do Kafka da TRA-1)", sub),
+    p(f"Squad VER-3 · Componente S3 — Alertas e Notificações · Broker do projeto: Kafka da Jetson ({BROKER}, rede do DComp)", sub),
     p(f"{DATA} · Código: {VERSAO}", sub),
     Spacer(1, 8),
     caixa(
-        "<b>Resumo:</b> o S3 está pronto para o servidor. A imagem Docker e o script de instalação foram testados "
-        "(o script, num Ubuntu limpo, sem Docker), e o GitHub passa a rodar os testes sozinho a cada push. Endereço do "
-        f"broker: <b>{BROKER}</b>, sem autenticação; nomes dos tópicos aprovados pela TRA-1 (os da especificação). "
-        "<b>O que falta é ter o servidor:</b> qual máquina e como entrar nela. Com isso, a instalação é um comando e "
-        "leva uns 3 minutos de máquina ligada."
+        f"<b>Resumo:</b> o professor configurou o Kafka na Jetson (<b>{BROKER}</b>, acessível só dentro da rede do "
+        "DComp) e pediu os componentes prontos para testar e usar com o restante da aplicação a partir de 06/11. "
+        "O S3 não precisa de mudança no código: o endereço é configuração. Foi preparado para a Jetson: imagem em "
+        "ARM, instalação do <font face='Consolas'>docker compose</font> se faltar e um caminho sem internet "
+        "(imagem construída fora e carregada). <b>O que falta é o acesso à Jetson</b> (usuário e SSH); com ele, "
+        "a instalação é um comando, de dentro da rede do DComp."
     ),
 
     p("Situação", h2),
     tabela(["#", "Etapa", "Situação", "Detalhe"],
            [[str(i), nome, sit, det] for i, (nome, sit, det) in enumerate(ETAPAS, start=1)],
-           [0.6, 5.2, 2.2, 9.5]),
+           [0.8, 5.1, 2.2, 9.4]),
 
     *etapa(1, "Código pronto e testado", FEITO, "Na máquina de desenvolvimento",
-           p("A imagem foi construída e rodada contra o Kafka local, sem tocar no broker oficial. Resultado:"),
+           p("A imagem foi construída e rodada contra o Kafka local, sem tocar no broker do projeto. Resultado:"),
            tabela(["Verificação", "Resultado"], [
                ["Evento do S2 vira alerta, gravado e publicado", "ok"],
                ["Banco no volume sobrevive ao reinício do contêiner", "ok, sem reprocessar nada"],
@@ -171,91 +183,106 @@ historia = [
                ["Ao religar, processa um evento novo", "em ~5 s"],
                ["Recursos parado", "18 MB de memória, 0,04% de CPU; imagem de 200 MB"],
                ["Usuário dentro do contêiner", "s3 (uid 1000), não root"],
-               ["Suíte de testes", "385 testes passando, nenhum usa o broker"],
+               ["Suíte de testes", "394 testes passando, 98% de cobertura, nenhum usa o broker"],
            ], [9, 8.5])),
 
     *etapa(2, "Script de instalação testado", FEITO, "infra/servidor/instalar.sh",
-           p("O script faz sozinho o que antes eram três etapas à mão. Teste: um contêiner Ubuntu 24.04 limpo fez o "
-             "papel do servidor, e um Kafka separado fez o papel do broker oficial."),
+           p("Teste: um contêiner Ubuntu 24.04 limpo, sem Docker, fez o papel do servidor, e um Kafka separado, "
+             "sem nenhum tópico, fez o papel do broker do projeto."),
            tabela(["O script", "No teste"], [
                ["Instala o Docker, se faltar", "instalou (Docker 29.9 e Compose 5.7)"],
+               ["Instala o plugin <font face='Consolas'>docker compose</font>, se faltar (comum na Jetson)", "acrescentado depois do teste, para a Jetson"],
                ["Guarda o broker em <font face='Consolas'>infra/servidor/.env</font> (fora do git)", "ok; depois de down e up, religou sem export"],
+               ["Cria no broker os tópicos do S3 que faltam, antes de ligar o S3", "criou os 9; na segunda execução, \"já existe\" nos 9"],
                ["Constrói a imagem e liga o <font face='Consolas'>ods-s3</font>", "ok, contêiner Up"],
-               ["Cria no broker os tópicos do S3 que faltam, antes de ligar o S3", "Kafka sem tópicos: criou os 9; na segunda execução, \"já existe\" nos 9"],
-               ["Mostra o log e os comandos do dia a dia", "ok"],
-               ["S3 instalado processa um evento", "evento publicado virou alerta (alerta_criado, CREATED)"],
+               ["Com <font face='Consolas'>--sem-construir</font>, usa a imagem já carregada", "para a Jetson sem internet (etapa 6)"],
            ], [9, 8.5])),
 
     *etapa(3, "Verificação mínima no broker", FEITO, "tools/verificar_broker.py (vai dentro da imagem)",
-           p("Um comando, para rodar uma vez no servidor, que prova o S3 no broker real gastando o mínimo. Faz o papel do "
-             "A5 (aplicação do VER-3), sem se passar pelo S2: confere os 9 tópicos, cria um alerta de teste por comando "
-             "(\"[TESTE S3]\"), espera o ods.s3.alert, dá ACKNOWLEDGE e CLOSE (o alerta de teste não fica aberto nas "
-             "aplicações) e consulta o histórico. São 4 comandos e 1 consulta; os consumidores começam do fim dos tópicos."),
-           tabela(["No teste contra o Kafka local (04/11)", "Resultado"], [
-               ["Com o S3 ligado", "tudo ok em 4 s; 4 mensagens enviadas, 7 recebidas"],
+           p("Prova o S3 no broker real com 4 comandos e 1 consulta. Faz o papel do A5 (aplicação do VER-3), sem se "
+             "passar pelo S2: confere os 9 tópicos, cria um alerta de teste por comando (\"[TESTE S3]\"), espera o "
+             "ods.s3.alert, dá ACKNOWLEDGE e CLOSE (o alerta de teste não fica aberto nas aplicações) e consulta o "
+             "histórico. Fora de localhost, só roda com <font face='Consolas'>--broker-oficial</font>."),
+           tabela(["No teste", "Resultado"], [
+               ["Com o S3 ligado (Kafka de teste, fora de localhost, com --broker-oficial)", "tudo ok em ~4 s"],
                ["Endereço fora de localhost sem --broker-oficial", "recusa antes de conectar"],
                ["Com o S3 desligado", "falha em 15 s: \"não chegou a resposta... O S3 está ligado?\""],
            ], [9, 8.5])),
 
     *etapa(4, "Integração contínua (GitHub Actions)", FEITO, ".github/workflows/ci.yml",
-           p("A cada push e pull request, o GitHub roda a suíte com cobertura e constrói a imagem do servidor. "
-             "Roda nos servidores do GitHub: <b>não gasta os créditos do professor</b> nem usa o broker. "
-             "Os mesmos passos foram conferidos num contêiner Linux com Python 3.12: 385 testes passando, 98% de "
-             "cobertura, imagem construída e S3 abrindo dentro dela. <b>A primeira execução no GitHub passou</b> "
-             "(04/11, commit ea1ae2d); o resultado de cada push aparece na aba <b>Actions</b> do repositório.")),
+           p("A cada push e pull request, o GitHub roda a suíte com cobertura e constrói a imagem. Roda nos servidores "
+             "do GitHub, sem usar o broker. O resultado de cada push aparece na aba <b>Actions</b> do repositório.")),
 
-    *etapa(5, "Juntar na main", FALTA, f"Na sua máquina (a main {COMMIT} já tem o script, a verificação e o CI)",
+    *etapa(5, "Broker da Jetson", FEITO, "E-mail do professor",
+           tabela(["Ponto", "Situação"], [
+               ["Endereço", f"<b>{BROKER}</b>, acessível só dentro da rede do DComp"],
+               ["Desde quando", "testes e uso com o restante da aplicação a partir de 06/11"],
+               ["Mudança no S3", "nenhuma no código: o endereço vem do argumento do script (ou de S3_KAFKA_BOOTSTRAP)"],
+               ["Broker anterior", "nuvem de testes do Guia do Kafka (34.66.235.91:9093)"],
+           ], [5, 12.5])),
+
+    *etapa(6, "Imagem para ARM (Jetson)", ARM_SITUACAO, "A Jetson é ARM (aarch64), não um PC comum",
+           p("A imagem parte do <font face='Consolas'>python:3.12-slim</font>, que existe para ARM, e a "
+             "<font face='Consolas'>confluent-kafka</font> tem versão para ARM; o script constrói a imagem na própria "
+             "Jetson. Use o Docker, não o Python da Jetson: o JetPack 5 vem com Python 3.8, e o S3 precisa de 3.10 ou mais."),
+           ARM_TABELA,
+           Spacer(1, 4),
+           p("<b>Sem internet na Jetson</b>, construa a imagem ARM num PC com Docker e leve o arquivo:"),
+           codigo(f"""
+# no PC (Docker Desktop), na pasta do s3:
+docker buildx build --platform linux/arm64 --output "type=docker,name=ods-s3:latest,dest=ods-s3-arm64.tar" .
+# copie ods-s3-arm64.tar e a pasta do s3 para a Jetson; lá:
+docker load -i ods-s3-arm64.tar
+bash infra/servidor/instalar.sh {BROKER} --sem-construir
+""")),
+
+    p("<b>Plano B, no notebook com Windows</b> (na rede do DComp, com o Docker Desktop aberto). O S3 fica no ar "
+      "só enquanto o notebook estiver ligado e lá. Testado em 05/11 contra um Kafka sem tópicos:"),
+    codigo(rf"""
+powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_windows.ps1 {BROKER}
+docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
+"""),
+
+    *etapa(7, "Juntar na main", FALTA, "Na sua máquina",
            codigo("""
 git add -A
-git commit -m "Script de instalação cria os tópicos do S3 antes de ligar (TRA-1, 05/11)"
+git commit -m "S3 pronto para a Jetson: imagem ARM, compose e instalação sem internet"
 git push
 """),
            Spacer(1, 3),
-           p("Depois, juntar na main (pull request), como da outra vez. O servidor baixa o código da main.")),
+           p("Depois, juntar na main (pull request). A Jetson baixa o código da main.")),
 
-    *etapa(6, "Descobrir o servidor e como entrar nele", FALTA, "Com quem pediu o S3 no servidor (professor, TRA-1 ou P3/SIS-1)",
+    *etapa(8, "Acesso à Jetson", FALTA, "Com o professor ou a TRA-1",
            tabela(["Pergunta", "Por quê"], [
-               ["Qual máquina? (endereço IP ou nome; Google Cloud ou outra)", "É para onde você vai entrar"],
-               ["Como entrar? (usuário e senha, ou chave SSH)", "Sem acesso não há como instalar nada"],
-               ["Qual sistema operacional?", "O script é para Ubuntu ou Debian"],
-               ["A máquina tem saída para a internet e para o broker?", f"Para baixar o código e alcançar {BROKER}; não precisa abrir porta de entrada"],
+               ["Qual usuário e como entrar (SSH, senha ou chave)?", "Sem acesso não há como instalar"],
+               ["Cada squad instala o seu componente na Jetson, ou alguém centraliza?", "Para não haver dois S3 ligados ao mesmo broker"],
+               ["A Jetson tem Docker? E o docker compose?", "O script instala o compose se faltar, mas precisa de sudo"],
+               ["A Jetson alcança a internet (GitHub, Docker Hub, PyPI)?", "Se não, usar o caminho sem internet (etapa 6)"],
            ], [8.5, 9])),
 
-    *etapa(7, "Confirmar dois pontos com a TRA-1", FEITO, "Respondido pela TRA-1 em 05/11",
-           tabela(["Pergunta", "Resposta da TRA-1", "O que muda"], [
-               ["Os tópicos do S3 existem no broker?", "Os squads estão livres para criar, e o broker cria sozinho na primeira mensagem",
-                "O script cria os que faltam antes de ligar o S3: um tópico criado depois que o S3 já escuta pode levar até 5 min para ser percebido"],
-               ["Pode deixar o S3 ligado o tempo todo?", "Pode", "O S3 fica ligado no servidor"],
-           ], [5, 6, 6.5])),
-
-    *etapa(8, "Entrar no servidor e rodar o script", FALTA, "No seu terminal, depois dentro do servidor",
+    *etapa(9, "Entrar na Jetson e rodar o script", FALTA, "De dentro da rede do DComp",
            codigo(f"""
-ssh usuario@ENDERECO_DO_SERVIDOR
-sudo apt-get install -y git                    # só se o git faltar
+ssh USUARIO@IP_DA_JETSON                       # usuário e IP: etapa 8
 git clone https://github.com/ods-26-2/s3.git && cd s3
 bash infra/servidor/instalar.sh {BROKER}
 """),
            Spacer(1, 3),
-           p("O script usa sudo para instalar o Docker, se precisar. No fim, ele mostra os tópicos "
-             "criados ou já existentes (<b>ok: 9 tópicos do S3 conferidos</b> é o esperado) e as últimas linhas do log. "
-             "Para fazer tudo à mão, os comandos estão em <font face='Consolas'>docs/IMPLANTACAO_SERVIDOR.md</font>.")),
+           p("O script mostra a arquitetura (<font face='Consolas'>aarch64</font> na Jetson), usa sudo para instalar "
+             "o que faltar, cria os tópicos e termina com <b>ok: 9 tópicos do S3 conferidos</b> e as últimas linhas do "
+             "log. Para fazer tudo à mão: <font face='Consolas'>docs/IMPLANTACAO_SERVIDOR.md</font>.")),
 
-    *etapa(9, "Conferir e rodar a verificação no broker", FALTA, "Dentro do servidor, na pasta s3",
+    *etapa(10, "Conferir e rodar a verificação no broker", FALTA, "Na Jetson, na pasta s3",
            codigo(f"""
 docker compose -f {COMPOSE} ps          # ods-s3 deve estar "Up"
-docker compose -f {COMPOSE} logs -f s3  # Ctrl+C sai do log; o S3 continua ligado
+docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
 """),
            Spacer(1, 3),
-           Spacer(1, 3),
-           p("Logo depois, a verificação (etapa 3). O esperado é terminar com <b>Tudo certo</b>; "
-             "tire a captura: é a evidência do S3.2 no broker real."),
-           codigo("docker exec ods-s3 python tools/verificar_broker.py --broker-oficial"),
-           Spacer(1, 3),
-           p("Depois, quando o S2 ou o A5 mandarem algo, o log mostra <font face='Consolas'>entrada ... resultado=alerta_criado</font> "
-             "e <font face='Consolas'>saida ... state=CREATED</font>.")),
+           p("O esperado é terminar com <b>Tudo certo</b>; tire a captura: é a evidência do S3.2 no broker real. "
+             "Depois, quando o S2 ou o A5 mandarem algo, o log mostra <font face='Consolas'>entrada ... "
+             "resultado=alerta_criado</font> e <font face='Consolas'>saida ... state=CREATED</font>.")),
 
     p("No dia a dia", h2),
-    tabela(["Para", "Comando, dentro do servidor (na pasta s3)"], [
+    tabela(["Para", "Comando, na Jetson (na pasta s3)"], [
         ["Ver o log", f"<font face='Consolas'>docker compose -f {COMPOSE} logs -f s3</font>"],
         ["Parar (o banco fica guardado)", f"<font face='Consolas'>docker compose -f {COMPOSE} down</font>"],
         ["Ligar de novo (lê o broker do .env)", f"<font face='Consolas'>docker compose -f {COMPOSE} up -d</font>"],
@@ -264,23 +291,12 @@ docker compose -f {COMPOSE} logs -f s3  # Ctrl+C sai do log; o S3 continua ligad
                                        "print(sqlite3.connect('/dados/s3.sqlite3').execute('select count(*) from alertas').fetchone())\"</font>"],
     ], [4.6, 12.9]),
 
-    p("Para economizar os créditos", h2),
-    tabela(["O quê", "Por quê"], [
-        ["Usar a menor máquina possível (1 a 2 GB de RAM, como uma <font face='Consolas'>e2-small</font> no Google Cloud)",
-         "O S3 usa 18 MB de memória e quase nada de CPU parado"],
-        ["Desligar a máquina (não apagar) quando ninguém estiver testando",
-         "O banco fica no disco e o S3 volta sozinho quando a máquina liga (restart: unless-stopped)"],
-        ["Rodar o script de uma vez, sem testar comando por comando no servidor",
-         "A instalação foi ensaiada num Ubuntu limpo: é a máquina ligada pelo menor tempo"],
-        ["Testes e CI no GitHub, não no servidor", "O CI roda na cota gratuita do GitHub"],
-    ], [9, 8.5]),
-
     p("Regras importantes", h2),
     caixa(
         "<b>Um S3 só.</b> Com o S3 no servidor, não ligue outro S3 contra o mesmo broker (nem na sua máquina): dois S3 "
         "respondem aos mesmos comandos, cada um com o seu banco. O <font face='Consolas'>kit_aplicacoes.py</font> e o "
         "<font face='Consolas'>teste_kafka_local.py</font> recusam qualquer broker que não seja localhost, de propósito.<br/><br/>"
-        "<b>O broker é pago e compartilhado pelos 15 squads.</b> O S3 espera 1 s entre leituras, sem martelar o broker. "
+        "<b>O broker é compartilhado por todos os squads.</b> O S3 espera 1 s entre leituras, sem sobrecarregar a Jetson. "
         "A TRA-1 liberou deixar o S3 ligado (05/11).",
         fundo=ALERTA,
     ),
@@ -290,7 +306,7 @@ docker compose -f {COMPOSE} logs -f s3  # Ctrl+C sai do log; o S3 continua ligad
         ["<i>uso: bash infra/servidor/instalar.sh &lt;broker host:porta&gt;</i>", "Faltou o endereço do broker", f"<font face='Consolas'>bash infra/servidor/instalar.sh {BROKER}</font>"],
         ["<i>defina S3_KAFKA_BOOTSTRAP</i>", "Compose rodado sem o .env (antes do script)", "Rodar o script uma vez; ele cria o .env"],
         ["<i>permission denied ... docker.sock</i>", "O usuário ainda não está no grupo docker", "Saia e entre de novo pelo ssh, ou use sudo na frente do comando"],
-        ["<i>AVISO: o broker não respondeu</i>", "Rede do servidor sem saída para o broker", "Falar com a TRA-1; testar a rede com <font face='Consolas'>nc -vz 34.66.235.91 9093</font>"],
+        ["<i>AVISO: o broker não respondeu</i>", "Fora da rede do DComp, ou Kafka da Jetson parado", "Rodar de dentro da rede do DComp; testar com <font face='Consolas'>nc -vz 172.18.4.56 9092</font>; falar com o professor ou a TRA-1"],
         ["S3 ligado, mas nada chega no log", "Ninguém publicando ainda", "Normal até o S2 e o A5 publicarem"],
         ["Depois de um reinício, demora até ~45 s para processar", "O S3 anterior foi morto sem fechar (queda de energia, kill)", "Esperar: o Kafka libera o lugar sozinho. Com docker stop ou down isso não acontece"],
     ], [5, 5.2, 7.3]),

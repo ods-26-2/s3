@@ -2,7 +2,7 @@
 # Instala e liga o S3 num servidor Linux (Ubuntu/Debian), ligado ao broker dado.
 #
 #   git clone https://github.com/ods-26-2/s3.git && cd s3
-#   bash infra/servidor/instalar.sh 34.66.235.91:9093
+#   bash infra/servidor/instalar.sh 172.18.4.56:9092      # Kafka da Jetson (rede do DComp)
 #
 # Faz as etapas 5 a 7 do docs/PASSO_A_PASSO_SERVIDOR_S3.pdf:
 #   1. instala o Docker, se faltar;
@@ -13,16 +13,35 @@
 #   5. liga o contêiner ods-s3 e mostra o log.
 #
 # Pode rodar de novo quando quiser: com --atualizar, faz `git pull` antes.
+# Sem internet na máquina, carregue antes a imagem pronta (docker load) e use
+# --sem-construir: veja docs/IMPLANTACAO_SERVIDOR.md, "Sem internet".
 set -euo pipefail
 
 uso() {
-    echo "uso: bash infra/servidor/instalar.sh <broker host:porta> [--atualizar]" >&2
+    echo "uso: bash infra/servidor/instalar.sh <broker host:porta> [--atualizar] [--sem-construir]" >&2
     exit 2
 }
 
 BROKER="${1:-}"
 [[ "$BROKER" =~ ^[^:[:space:]]+:[0-9]+$ ]] || uso
-ATUALIZAR="${2:-}"
+
+# Só no servidor (Jetson/Linux). No Windows (Git Bash), o sudo abre a janela
+# de administrador e tentaria instalar o Docker na máquina errada.
+if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "Este script roda no servidor Linux (a Jetson), não nesta máquina ($(uname -s))." >&2
+    echo "Entre na Jetson (ssh USUARIO@IP_DA_JETSON, de dentro da rede do DComp) e rode lá." >&2
+    exit 1
+fi
+shift
+ATUALIZAR=""
+CONSTRUIR=1
+for opcao in "$@"; do
+    case "$opcao" in
+        --atualizar) ATUALIZAR="--atualizar" ;;
+        --sem-construir) CONSTRUIR=0 ;;
+        *) uso ;;
+    esac
+done
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE="$RAIZ/infra/servidor/docker-compose.yml"
@@ -49,7 +68,22 @@ else
     DOCKER=(sudo docker)
 fi
 "${DOCKER[@]}" --version
-"${DOCKER[@]}" compose version
+echo "arquitetura: $(uname -m)"   # Jetson: aarch64; a imagem é construída aqui, para ela
+
+# Docker já instalado sem o plugin compose (comum na Jetson, com o docker.io
+# do Ubuntu): tenta o pacote do Ubuntu e depois o do repositório do Docker.
+if ! "${DOCKER[@]}" compose version >/dev/null 2>&1; then
+    echo "docker compose não encontrado; instalando o plugin..."
+    sudo apt-get update -qq || true
+    sudo apt-get install -y docker-compose-v2 >/dev/null 2>&1 \
+        || sudo apt-get install -y docker-compose-plugin >/dev/null 2>&1 \
+        || true
+fi
+if ! "${DOCKER[@]}" compose version; then
+    echo "ERRO: falta o docker compose. Instale o pacote docker-compose-v2 (Ubuntu)" >&2
+    echo "      ou docker-compose-plugin (repositório do Docker) e rode de novo." >&2
+    exit 1
+fi
 
 passo "Configuração (infra/servidor/.env)"
 cat > "$ENV" <<EOF
@@ -59,38 +93,22 @@ EOF
 cat "$ENV"
 
 passo "Construindo a imagem"
-"${DOCKER[@]}" compose -f "$COMPOSE" build
+if (( CONSTRUIR )); then
+    "${DOCKER[@]}" compose -f "$COMPOSE" build
+elif "${DOCKER[@]}" image inspect ods-s3 >/dev/null 2>&1; then
+    echo "--sem-construir: usando a imagem ods-s3 já carregada"
+else
+    echo "ERRO: --sem-construir, mas a imagem ods-s3 não está carregada (docker load -i ods-s3-arm64.tar)." >&2
+    exit 1
+fi
 
 # Antes de ligar o S3: um tópico criado depois que ele já está escutando
 # pode levar até 5 min para ser percebido. A TRA-1 liberou criar (05/11).
 passo "Tópicos do S3 no broker $BROKER (cria os que faltam)"
-"${DOCKER[@]}" run --rm --entrypoint python ods-s3 -c "
-import sys
-from confluent_kafka.admin import AdminClient, NewTopic
-TOPICOS = ['ods.s2.event', 'ods.s4.clip', 'ods.s3.alert.command', 'ods.s3.alert_action.command',
-           'ods.s3.alerts.query', 'ods.s3.alert', 'ods.s3.alert.reply', 'ods.s3.alert_action.reply',
-           'ods.s3.alerts.reply']
-admin = AdminClient({'bootstrap.servers': '$BROKER'})
-try:
-    existentes = admin.list_topics(timeout=15).topics
-except Exception as erro:
-    sys.exit(f'AVISO: o broker não respondeu ({erro}). O S3 liga, mas confira a rede do servidor.')
-faltam = [t for t in TOPICOS if t not in existentes]
-# -1: partições e réplicas no padrão do broker.
-for topico, futuro in (admin.create_topics([NewTopic(t, -1, -1) for t in faltam]).items() if faltam else []):
-    try:
-        futuro.result()
-        print('criado  ', topico)
-    except Exception as erro:
-        print('AVISO   ', topico, erro)
-for topico in TOPICOS:
-    if topico in existentes:
-        print('já existe', topico)
-print(f'ok: {len(TOPICOS)} tópicos do S3 conferidos')
-" || true
+"${DOCKER[@]}" run --rm --entrypoint python ods-s3 tools/criar_topicos.py "$BROKER" || true
 
 passo "Ligando o ods-s3"
-"${DOCKER[@]}" compose -f "$COMPOSE" up -d
+"${DOCKER[@]}" compose -f "$COMPOSE" up -d --no-build
 sleep 5
 "${DOCKER[@]}" compose -f "$COMPOSE" ps
 

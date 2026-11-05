@@ -227,3 +227,6 @@ venv/
 
 # Pacotes para enviar às equipes (gerados das pastas)
 *.zip
+
+# Imagem Docker exportada para levar à Jetson (tools: docs/IMPLANTACAO_SERVIDOR.md)
+*.tar

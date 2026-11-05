@@ -6,7 +6,7 @@ Cada item tem uma marca: **[Oficial]** é exigido pela especificação; **[Pende
 
 As decisões provisórias de [DECISOES_S3.md](DECISOES_S3.md) são confirmadas durante estes testes.
 
-O broker de testes (`34.66.235.91:9093`) é pago e compartilhado. A TRA-1 liberou deixar o S3 ligado e criar os tópicos (05/11/2026); testes de carga continuam exigindo combinar antes. Tudo o que der para provar localmente deve ser provado antes.
+Desde 06/11/2026 o broker do projeto é o Kafka da Jetson (`172.18.4.56:9092`, só na rede do DComp); antes era a nuvem de testes (`34.66.235.91:9093`), paga. Os dois são compartilhados. A TRA-1 liberou deixar o S3 ligado e criar os tópicos (05/11/2026); testes de carga continuam exigindo combinar antes. Tudo o que der para provar localmente deve ser provado antes.
 
 ## 1. Verificações por equipe
 

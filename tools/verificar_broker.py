@@ -17,7 +17,8 @@ Não publica em ods.s2.event: não se passa pelo S2 num broker compartilhado.
 O caminho S2 → S3 é verificado quando o S2 publicar de verdade.
 
 O broker vem de --broker ou de S3_KAFKA_BOOTSTRAP. Fora de localhost, só
-roda com --broker-oficial: o broker do projeto é pago e compartilhado.
+roda com --broker-oficial: o broker do projeto (Jetson, ou a nuvem de testes)
+é compartilhado por todos os squads.
 Os consumidores começam do fim dos tópicos (não leem o histórico) e tudo
 termina em --prazo segundos.
 """
@@ -201,8 +202,8 @@ def main() -> int:
     locais = all(item.strip().rsplit(":", 1)[0] in ("localhost", "127.0.0.1") for item in endereco.split(","))
     if not locais and not argumentos.broker_oficial:
         parser.error(
-            f"{endereco} não é local. O broker do projeto é pago e compartilhado: "
-            "rode só na janela combinada com a TRA-1, com --broker-oficial."
+            f"{endereco} não é local. O broker do projeto é compartilhado por todos os squads: "
+            "confirme que é o broker certo e rode com --broker-oficial."
         )
 
     print(f"Verificação do S3 no broker {endereco} (até {argumentos.prazo:.0f} s)")

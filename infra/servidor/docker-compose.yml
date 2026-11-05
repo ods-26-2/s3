@@ -1,12 +1,13 @@
 # S3 no servidor, ligado ao broker do projeto.
 #
-#   S3_KAFKA_BOOTSTRAP=34.66.235.91:9093 docker compose -f infra/servidor/docker-compose.yml up -d --build
+#   S3_KAFKA_BOOTSTRAP=172.18.4.56:9092 docker compose -f infra/servidor/docker-compose.yml up -d --build
+#   (o infra/servidor/instalar.sh faz isso e guarda o broker no .env)
 #   docker compose -f infra/servidor/docker-compose.yml logs -f s3     # uma linha por mensagem
 #   docker compose -f infra/servidor/docker-compose.yml down           # para (o volume fica)
 #
 # O endereço do broker é obrigatório e não tem valor padrão, para ninguém
-# ligar no broker pago por engano. O broker é compartilhado pelos 15 squads:
-# combine com a TRA-1 antes de deixar o S3 ligado.
+# ligar no broker errado por engano. O broker é compartilhado pelos squads
+# (Kafka da Jetson, 172.18.4.56:9092, só na rede do DComp).
 services:
   s3:
     build:

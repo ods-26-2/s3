@@ -76,13 +76,15 @@ Fora da suíte, com Docker:
 - `tools/kit_aplicacoes.py` faz o papel do S2, do S4 e do A5 (alertas, comandos, consulta) e mostra o banco ([docs/KIT_APLICACOES_KAFKA_LOCAL.md](docs/KIT_APLICACOES_KAFKA_LOCAL.md), [docs/ROTEIRO_DEMONSTRACAO_S3.md](docs/ROTEIRO_DEMONSTRACAO_S3.md)).
 - Os dois só aceitam `localhost`.
 
-**No servidor**, ligado ao broker do projeto (Guia do Kafka da TRA-1: `34.66.235.91:9093`, sem autenticação):
+**No servidor / na Jetson**, ligado ao broker do projeto (**Kafka da Jetson, `172.18.4.56:9092`, só na rede do DComp**, desde 06/11; antes, a nuvem de testes `34.66.235.91:9093`). A imagem funciona em ARM; sem internet na Jetson, veja "Sem internet" em [docs/IMPLANTACAO_SERVIDOR.md](docs/IMPLANTACAO_SERVIDOR.md):
 
 ```bash
 git clone https://github.com/ods-26-2/s3.git && cd s3
-bash infra/servidor/instalar.sh 34.66.235.91:9093
+bash infra/servidor/instalar.sh 172.18.4.56:9092
 docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
 ```
+
+Plano B, num notebook com Windows na rede do DComp: `powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_windows.ps1 172.18.4.56:9092`.
 
 Passo a passo, problemas comuns e economia de créditos: [docs/PASSO_A_PASSO_SERVIDOR_S3.pdf](docs/PASSO_A_PASSO_SERVIDOR_S3.pdf) e [docs/IMPLANTACAO_SERVIDOR.md](docs/IMPLANTACAO_SERVIDOR.md).
 

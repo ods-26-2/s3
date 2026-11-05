@@ -86,12 +86,20 @@ class ProcessadorComandos:
         self,
         service: AlertService,
         permissoes: PoliticaPermissoes | None = None,
+        produtores: frozenset[str] | None = None,
     ) -> None:
         self.service = service
 
         # Sem política, qualquer actor no formato user:<id> pode agir
         # (a aplicação confere antes de enviar).
         self.permissoes = permissoes
+
+        # Quem pode mandar comandos e consultas ao S3 (campo producer).
+        # O broker do projeto não tem autenticação (TRA-1, 04/11/2026):
+        # sem esta lista, qualquer squad consegue publicar nos tópicos do
+        # S3. O producer pode ser falsificado; a lista barra engano, não
+        # ataque. None = qualquer produtor.
+        self.produtores = produtores
 
         self._tratadores = {
             SCHEMA_CRIAR: ("command", self._criar),
@@ -146,6 +154,7 @@ class ProcessadorComandos:
                 payload = validar_envelope(
                     dados, schema, message_type, PERFIL_CMD
                 )
+                self._conferir_produtor(dados["producer"])
                 corpo = tratador(payload, message_id)
             except ErroS3 as erro:
                 corpo = self._erro(erro.codigo, str(erro))
@@ -178,6 +187,19 @@ class ProcessadorComandos:
         self.service.despachar_saida()
 
         return json.dumps(resposta, ensure_ascii=False)
+
+    def _conferir_produtor(self, produtor: str) -> None:
+        """
+        Mesmo código que o S3 usa para ods.s2.event e ods.s4.clip de
+        outro produtor (INVALID_MESSAGE): nenhum código de erro novo.
+        """
+
+        if self.produtores is not None and produtor not in self.produtores:
+            raise ErroS3(
+                INVALID_MESSAGE,
+                f"{produtor} não está entre os produtores que podem mandar "
+                f"comandos ao S3: {', '.join(sorted(self.produtores))}.",
+            )
 
     @staticmethod
     def _erro(codigo: str, mensagem: str) -> dict:

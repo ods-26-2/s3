@@ -1,5 +1,7 @@
 # S3 — Alertas e Notificações (Squad VER-3): estado do componente
 
+> **Documento antigo (16/10/2026), mantido só como histórico.** O estado atual está no [README.md](../README.md) e em [SITUACAO_SPRINT3_S3.pdf](SITUACAO_SPRINT3_S3.pdf).
+
 *Atualizado em 16/10/2026, depois da conferência campo a campo com a Especificação de interfaces 1.0 (`ods-6cfinal.html`).*
 
 ## Resumo

@@ -136,11 +136,11 @@ ETAPAS = [
     ("Script de instalação testado", FEITO, "infra/servidor/instalar.sh rodado num Ubuntu 24.04 limpo em 04/11: instalou o Docker, ligou o S3 e processou um evento"),
     ("Verificação mínima no broker", FEITO, "tools/verificar_broker.py, dentro da imagem; passou contra o Kafka local em 4 s"),
     ("Integração contínua (GitHub Actions)", FEITO, "Testes, cobertura e imagem a cada push; a primeira execução no GitHub passou (04/11, commit ea1ae2d)"),
-    ("Juntar na main", FALTA, f"Script e CI já no GitHub (feature/docker); falta a verificação e o merge. A main está em {COMMIT}"),
+    ("Juntar na main", FALTA, f"A main ({COMMIT}) já tem script, verificação e CI; falta a criação de tópicos de 05/11"),
     ("Descobrir o servidor e como entrar nele", FALTA, "Com quem pediu o S3 no servidor"),
-    ("Confirmar dois pontos com a TRA-1", FALTA, "Na aula de 05/11"),
+    ("Confirmar dois pontos com a TRA-1", FEITO, "05/11: livres para criar tópicos (e o broker cria sozinho); o S3 pode ficar ligado"),
     ("Entrar no servidor e rodar o script", FALTA, "No servidor: 3 comandos, uns 3 minutos"),
-    ("Conferir e rodar a verificação no broker", FALTA, "No servidor, na janela combinada com a TRA-1"),
+    ("Conferir e rodar a verificação no broker", FALTA, "No servidor, logo depois do script"),
 ]
 
 historia = [
@@ -181,7 +181,7 @@ historia = [
                ["Instala o Docker, se faltar", "instalou (Docker 29.9 e Compose 5.7)"],
                ["Guarda o broker em <font face='Consolas'>infra/servidor/.env</font> (fora do git)", "ok; depois de down e up, religou sem export"],
                ["Constrói a imagem e liga o <font face='Consolas'>ods-s3</font>", "ok, contêiner Up"],
-               ["Confere os tópicos do S3 no broker (só lê)", "ok: 9 tópicos"],
+               ["Cria no broker os tópicos do S3 que faltam, antes de ligar o S3", "Kafka sem tópicos: criou os 9; na segunda execução, \"já existe\" nos 9"],
                ["Mostra o log e os comandos do dia a dia", "ok"],
                ["S3 instalado processa um evento", "evento publicado virou alerta (alerta_criado, CREATED)"],
            ], [9, 8.5])),
@@ -204,10 +204,10 @@ historia = [
              "cobertura, imagem construída e S3 abrindo dentro dela. <b>A primeira execução no GitHub passou</b> "
              "(04/11, commit ea1ae2d); o resultado de cada push aparece na aba <b>Actions</b> do repositório.")),
 
-    *etapa(5, "Juntar na main", FALTA, "Na sua máquina (o script e o CI já foram, no commit ea1ae2d)",
+    *etapa(5, "Juntar na main", FALTA, f"Na sua máquina (a main {COMMIT} já tem o script, a verificação e o CI)",
            codigo("""
 git add -A
-git commit -m "Verificação mínima no broker e relatórios atualizados"
+git commit -m "Script de instalação cria os tópicos do S3 antes de ligar (TRA-1, 05/11)"
 git push
 """),
            Spacer(1, 3),
@@ -221,13 +221,12 @@ git push
                ["A máquina tem saída para a internet e para o broker?", f"Para baixar o código e alcançar {BROKER}; não precisa abrir porta de entrada"],
            ], [8.5, 9])),
 
-    *etapa(7, "Confirmar dois pontos com a TRA-1", FALTA, "Na aula de 05/11",
-           tabela(["Pergunta", "Se a resposta for não"], [
-               ["Os tópicos do S3 já existem no broker, ou o broker cria na primeira mensagem?",
-                "O S3 liga, mas não recebe nada, e guarda o que tentar publicar na fila de saída. Pedir à TRA-1 para criar os tópicos. O script avisa quando faltam"],
-               ["Pode deixar o S3 ligado o tempo todo no broker pago?",
-                "Ligar só na janela de teste e desligar depois (comando de parar, abaixo)"],
-           ], [8, 9.5])),
+    *etapa(7, "Confirmar dois pontos com a TRA-1", FEITO, "Respondido pela TRA-1 em 05/11",
+           tabela(["Pergunta", "Resposta da TRA-1", "O que muda"], [
+               ["Os tópicos do S3 existem no broker?", "Os squads estão livres para criar, e o broker cria sozinho na primeira mensagem",
+                "O script cria os que faltam antes de ligar o S3: um tópico criado depois que o S3 já escuta pode levar até 5 min para ser percebido"],
+               ["Pode deixar o S3 ligado o tempo todo?", "Pode", "O S3 fica ligado no servidor"],
+           ], [5, 6, 6.5])),
 
     *etapa(8, "Entrar no servidor e rodar o script", FALTA, "No seu terminal, depois dentro do servidor",
            codigo(f"""
@@ -238,7 +237,7 @@ bash infra/servidor/instalar.sh {BROKER}
 """),
            Spacer(1, 3),
            p("O script usa sudo para instalar o Docker, se precisar. No fim, ele mostra os tópicos "
-             "encontrados (<b>ok: 9 tópicos</b> é o esperado) e as últimas linhas do log. "
+             "criados ou já existentes (<b>ok: 9 tópicos do S3 conferidos</b> é o esperado) e as últimas linhas do log. "
              "Para fazer tudo à mão, os comandos estão em <font face='Consolas'>docs/IMPLANTACAO_SERVIDOR.md</font>.")),
 
     *etapa(9, "Conferir e rodar a verificação no broker", FALTA, "Dentro do servidor, na pasta s3",
@@ -248,7 +247,7 @@ docker compose -f {COMPOSE} logs -f s3  # Ctrl+C sai do log; o S3 continua ligad
 """),
            Spacer(1, 3),
            Spacer(1, 3),
-           p("Na janela combinada com a TRA-1, a verificação (etapa 3). O esperado é terminar com <b>Tudo certo</b>; "
+           p("Logo depois, a verificação (etapa 3). O esperado é terminar com <b>Tudo certo</b>; "
              "tire a captura: é a evidência do S3.2 no broker real."),
            codigo("docker exec ods-s3 python tools/verificar_broker.py --broker-oficial"),
            Spacer(1, 3),
@@ -282,7 +281,7 @@ docker compose -f {COMPOSE} logs -f s3  # Ctrl+C sai do log; o S3 continua ligad
         "respondem aos mesmos comandos, cada um com o seu banco. O <font face='Consolas'>kit_aplicacoes.py</font> e o "
         "<font face='Consolas'>teste_kafka_local.py</font> recusam qualquer broker que não seja localhost, de propósito.<br/><br/>"
         "<b>O broker é pago e compartilhado pelos 15 squads.</b> O S3 espera 1 s entre leituras, sem martelar o broker. "
-        "Se a TRA-1 pedir para desligar fora do horário de teste, use o comando de parar.",
+        "A TRA-1 liberou deixar o S3 ligado (05/11).",
         fundo=ALERTA,
     ),
 
@@ -291,7 +290,7 @@ docker compose -f {COMPOSE} logs -f s3  # Ctrl+C sai do log; o S3 continua ligad
         ["<i>uso: bash infra/servidor/instalar.sh &lt;broker host:porta&gt;</i>", "Faltou o endereço do broker", f"<font face='Consolas'>bash infra/servidor/instalar.sh {BROKER}</font>"],
         ["<i>defina S3_KAFKA_BOOTSTRAP</i>", "Compose rodado sem o .env (antes do script)", "Rodar o script uma vez; ele cria o .env"],
         ["<i>permission denied ... docker.sock</i>", "O usuário ainda não está no grupo docker", "Saia e entre de novo pelo ssh, ou use sudo na frente do comando"],
-        ["<i>AVISO: nenhum tópico do S3 no broker</i>", "Tópicos inexistentes, ou broker inalcançável", "Falar com a TRA-1; testar a rede com <font face='Consolas'>nc -vz 34.66.235.91 9093</font>"],
+        ["<i>AVISO: o broker não respondeu</i>", "Rede do servidor sem saída para o broker", "Falar com a TRA-1; testar a rede com <font face='Consolas'>nc -vz 34.66.235.91 9093</font>"],
         ["S3 ligado, mas nada chega no log", "Ninguém publicando ainda", "Normal até o S2 e o A5 publicarem"],
         ["Depois de um reinício, demora até ~45 s para processar", "O S3 anterior foi morto sem fechar (queda de energia, kill)", "Esperar: o Kafka libera o lugar sozinho. Com docker stop ou down isso não acontece"],
     ], [5, 5.2, 7.3]),

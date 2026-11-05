@@ -1,6 +1,6 @@
 # Decisões do S3 — Alertas e Notificações (VER-3)
 
-*Atualizado em 21/10/2026. Os números seguem as pendências do [README](../README.md).*
+*Criado em 21/10/2026 e atualizado em 05/11/2026. Os números são os das pendências levantadas em 21/10 (antes listadas no README).*
 
 Cada decisão tem uma origem:
 
@@ -29,7 +29,7 @@ Cada decisão tem uma origem:
 | 16 | Pontos que a especificação não define | `{duration_s}` = `duration_ms ÷ 1000`, arredondado para baixo. `mute_until` no passado é aceito, porque os relógios podem divergir e o replay usa horários passados. `from_at` maior que `to_at` devolve lista vazia. `captured_at` de alerta de comando = criação | Do VER-3 (contrato do S3) | — |
 | 17 | Deduplicação | O consumidor descarta pelo `message_id` e **atualiza** o alerta pelo `alert_id`. O S3 não muda | Provisória | TRA-1 (B1): texto da regra 7; avisar A3, A5 e A7 |
 | 18 | Ordem de entrega | `ods.s3.alert` com chave de partição `alert_id` (já implementado). O consumidor ignora `sequence` menor para o mesmo alerta. O S2 deve usar `event_id` como chave | Provisória | TRA-1 (B3), VER-6 |
-| 19 | Remetente fora da lista | O B3 bloqueia no broker; o S3 não confere o `producer` dos comandos | Aprovada | TRA-1 (B3): configurar as permissões |
+| 19 | Remetente fora da lista | **Revisada em 05/11/2026.** A aprovação de 21/10 era o B3 bloquear no broker, mas o broker não tem autenticação (TRA-1, 04/11): qualquer squad consegue publicar nos tópicos do S3. O S3 passou a ter a opção `--produtores` (ou `S3_PRODUTORES_COMANDOS`, ex.: `A3,A5,A7`): comando ou consulta de outro `producer` recebe ERROR `INVALID_MESSAGE` (o mesmo código usado para `ods.s2.event` e `ods.s4.clip` de outro produtor; nenhum código novo) e não muda nada. **Desligada por padrão.** O `producer` pode ser falsificado: a lista barra engano, não ataque. O `actor` continua conferido pelas permissões (8) | Provisória | TRA-1: concordar e ligar no servidor |
 
 ## Respostas ao envio dos contratos (até 30/10/2026)
 
@@ -41,6 +41,7 @@ Os contratos foram enviados às aplicações, ao barramento e às camadas de ser
 | **A2** (VER-2) | Não vai usar o S3 | Nada no código. A2 era remetente possível de `alert.command` e `alerts.query` e consumidor opcional de `ods.s3.alert`; sai das verificações de integração |
 | **S4** (MOD-2) | Campos alinhados com a 6c; `event_id` é o mesmo do S2 (`null` em captura manual); o clipe sai **depois** do alerta, porque o S4 só publica após gravar o MP4; `media_uri` é referência lógica (`s4://…`), resolvida pelo S4 | Confirma o desenho atual: o S3 vincula o clipe numa republicação e não precisa do `clip_id` na criação. O S3 não guarda `media_uri`: o alerta leva só `clip_id`, e a aplicação pede o vídeo ao S4 |
 | **TRA-1** (B1/B3), 04/11/2026 | Contratos "aparentemente compatíveis"; o broker não tem autenticação (conexão direta em `34.66.235.91:9093`, endereço do Guia do Kafka); tópicos seguem a especificação. Os demais pontos ficam para a aula de 05/11 | Pendência 1 aprovada, sem mudança no código: o S3 já usa o nome do schema e conecta só com `bootstrap.servers`. Continuam abertos: 3 (tópico `.reply`), 5 e 9 na especificação e no validador, 17 (texto da regra 7), 18 (chave de partição) e 19 (ACL), além de quem cria os tópicos no broker |
+| **TRA-1** (B3), 05/11/2026 | Os squads estão livres para criar os tópicos, e o broker também cria automaticamente na primeira mensagem. O S3 pode ficar ligado o tempo todo | O `infra/servidor/instalar.sh` cria os tópicos do S3 que faltarem **antes** de ligar o S3 (um tópico criado depois que o consumidor já assinou pode levar até 5 min para ser percebido, pelo intervalo padrão de metadados do cliente). O S3 fica ligado no servidor |
 | Demais (A3, A7, S2, TRA-2) | Sem resposta | — |
 
 **Exemplo real do S4 (29/10/2026) passado pelo S3:** é rejeitado. Com as quatro correções abaixo, é aceito. Cada problema rejeita sozinho. O exemplo está guardado sem alteração em `tests/s3/dados/clipe_s4_real.json` e é coberto por `tests/s3/test_exemplo_s4.py`, inclusive o `"event_id": null` da captura manual (aceito e ignorado).
@@ -61,4 +62,4 @@ Recomendação ao S4, sem bloquear o S3: `correlation_id` = `event_id` na captur
   - **Garantia:** entrega pelo menos uma vez, com o mesmo `message_id` no reenvio. Consumidores descartam repetidos pelo `message_id` (seção 2, regra 7).
   - **Confirmação de entrega do Kafka:** só conta o relatório `on_delivery` sem erro.
   - **Contratos afetados:** nenhum. Só melhora o cumprimento da idempotência (regra 6), da deduplicação (regra 7) e do `sequence` (seção 3).
-- **Teste real com S2 e aplicações:** em 21/10/2026, eles ainda não conseguem mandar e receber mensagens. As confirmações desta tabela entram nesse teste. O roteiro está em [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).
+- **Teste real com S2 e aplicações:** até 05/11/2026, o S2 ainda não publicou no broker; as aplicações receberam os contratos e não fizeram objeção. As confirmações desta tabela entram nesse teste. O roteiro está em [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).

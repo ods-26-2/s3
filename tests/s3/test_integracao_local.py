@@ -287,6 +287,27 @@ class TestFluxoS2S3A5(unittest.TestCase):
         fechado.assert_called_once()
         self.assertTrue(any("SIGTERM; encerrando" in linha for linha in logs.output))
 
+    def test_produtores_pela_variavel_de_ambiente(self):
+        """No servidor, a lista vem de S3_PRODUTORES_COMANDOS (infra/servidor/.env)."""
+
+        evento = mensagem_evento()
+        self.s2.publicar(json.dumps(evento))
+        self.partida_s3(1)
+        [criado] = self.alertas()
+        alerta_id = criado["payload"]["alert_id"]
+
+        de_a2 = comando(ACAO, {"alert_id": alerta_id, "action": "CLOSE", "actor": "user:maria"}, producer="A2")
+        de_a5 = self.acao(alerta_id, "ACKNOWLEDGE", "user:maria")
+        self.a5.publicar(json.dumps(de_a2))
+
+        with mock.patch.dict(os.environ, {"S3_PRODUTORES_COMANDOS": "A3, A5, A7"}):
+            self.partida_s3(2)
+
+        respostas = {r["correlation_id"]: r["payload"] for r in self.respostas("ods.s3.alert_action.reply")}
+        self.assertEqual(respostas[de_a2["message_id"]]["error"]["code"], "INVALID_MESSAGE")
+        self.assertEqual(respostas[de_a5["message_id"]]["state"], "ACKNOWLEDGED")
+        self.assertEqual([a["payload"]["state"] for a in self.alertas()], ["CREATED", "ACKNOWLEDGED"])
+
     def test_comando_repetido_depois_do_reinicio(self):
         """O mesmo comando, entregue de novo depois de uma partida, recebe a mesma resposta."""
 

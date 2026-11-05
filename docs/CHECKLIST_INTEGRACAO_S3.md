@@ -1,17 +1,17 @@
 # Checklist de integração do S3 (VER-3)
 
-*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Contratos e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_CONTRATOS_S3.md). Pendências numeradas: [README.md](../README.md).*
+*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Contratos e situação de cada um: [MATRIZ_CONTRATOS_S3.md](MATRIZ_CONTRATOS_S3.md). Pendências numeradas: [DECISOES_S3.md](DECISOES_S3.md). Atualizado em 05/11/2026.*
 
 Cada item tem uma marca: **[Oficial]** é exigido pela especificação; **[Pendente]** depende de decisão (com o número da pendência); **[Recomendação]** é proposta técnica do VER-3.
 
 As decisões provisórias de [DECISOES_S3.md](DECISOES_S3.md) são confirmadas durante estes testes.
 
-Os testes de integração devem usar o broker de testes **só em janela combinada com a TRA-1**, porque ele é pago e compartilhado. Tudo o que der para provar localmente deve ser provado antes.
+O broker de testes (`34.66.235.91:9093`) é pago e compartilhado. A TRA-1 liberou deixar o S3 ligado e criar os tópicos (05/11/2026); testes de carga continuam exigindo combinar antes. Tudo o que der para provar localmente deve ser provado antes.
 
 ## 1. Verificações por equipe
 
 ### S2 (VER-6)
-- [ ] **[Pendente]** Em 21/10/2026 o S2 e as aplicações **ainda não conseguem** mandar e receber mensagens reais. Até lá, o teste é local, com os JSONs de `jsons/`.
+- [ ] **[Pendente]** Até 05/11/2026 o S2 ainda não publicou no broker. Até lá, o teste é local, com o kit (`tools/kit_aplicacoes.py`) e os JSONs de `tests/s3/dados/`.
 - [ ] **[Oficial]** O S2 publica `ods.s2.event` com envelope EV-SERVIÇO completo e `producer = "S2"`; o S3 rejeita qualquer outro produtor.
 - [ ] **[Oficial]** `event_id` é UUID v4 e é o mesmo em STARTED, UPDATED e ENDED.
 - [ ] **[Oficial]** Os campos obrigatórios estão presentes, incluindo `duration_ms` inteiro e `source_ids`.
@@ -39,7 +39,7 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 - [x] **[Decidido 5]** `session_id` opcional em alerta criado por comando: aprovado em 21/10/2026. Falta escrever a exceção na especificação e no validador de B1.
 - [ ] **[Pendente 9]** Aprovar ou substituir os códigos provisórios `INVALID_PAYLOAD` e `INVALID_MESSAGE`.
 - [ ] **[Pendente 17]** Esclarecer a regra 7 da seção 2: o que significa "`alert_id` é chave de deduplicação".
-- [x] **[Decidido 19]** Produtor fora da lista: quem bloqueia é o B3, no broker (21/10/2026).
+- [ ] **[Revisada 19]** Produtor fora da lista: o broker não tem autenticação (04/11/2026), então o B3 não barra remetentes. O S3 tem a opção `--produtores A3,A5,A7` (`S3_PRODUTORES_COMANDOS`), desligada até a TRA-1 concordar.
 - [ ] **[Pendente 15, 16]** Paginação da consulta e pontos não definidos.
 
 ### B2 (TRA-2) — tempo e sessão
@@ -48,11 +48,12 @@ Os testes de integração devem usar o broker de testes **só em janela combinad
 - [ ] **[Recomendação]** Conferir a latência (`published_at` − `captured_at`) dos alertas de evento num cenário gravado de P6.
 
 ### B3 (TRA-1) — barramento
-- [ ] **[Pendente 1]** Confirmar os nomes dos tópicos. A especificação diz "um tópico por schema"; o S3 usa o nome do schema como tópico.
+- [x] **[Decidido 1]** Nomes dos tópicos: o nome do schema, como na especificação. Confirmado pela TRA-1 em 04/11/2026.
+- [x] **[TRA-1, 04 e 05/11/2026]** Broker sem autenticação; os squads podem criar os tópicos (o broker também cria sozinho); o S3 pode ficar ligado. O `infra/servidor/instalar.sh` cria os tópicos do S3 antes de ligar o S3.
 - [ ] **[Pendente 3]** Confirmar o tópico das replies (`ods.s3.<x>.reply`) e o filtro por `correlation_id`.
 - [ ] **[Pendente 18]** Garantia de ordem por alerta: chave de partição `alert_id` em `ods.s3.alert` e `event_id` em `ods.s2.event`. Desde 21/10/2026, o `PublicadorKafka` usa o `alert_id` como chave em `ods.s3.alert`; falta o B3 confirmar, e o S2 decidir a chave de `ods.s2.event`.
-- [ ] **[Decidido 19, falta executar]** ACL por tópico e credencial por aplicação, para que só A3, A5 e A7 escrevam em `alert_action.command`.
-- [ ] **[Recomendação]** Teste curto no broker de testes: um `ods.s2.event` de exemplo, o alerta, um ACK, um CLOSE e uma consulta, com `--tempo-limite`.
+- [ ] **[Pendente 19]** Sem autenticação não há ACL por aplicação. Se a TRA-1 concordar, ligar no servidor `S3_PRODUTORES_COMANDOS=A3,A5,A7`.
+- [ ] **[Recomendação]** Teste curto no broker de testes, já pronto em `tools/verificar_broker.py`: cria um alerta por comando no papel do A5, ACK, CLOSE e consulta (4 comandos e 1 consulta). Rodar no servidor, logo depois da instalação.
 
 ## 2. Deduplicação e atualização de estado
 

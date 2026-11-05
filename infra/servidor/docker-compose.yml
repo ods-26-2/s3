@@ -17,6 +17,10 @@ services:
     environment:
       S3_KAFKA_BOOTSTRAP: ${S3_KAFKA_BOOTSTRAP:?defina S3_KAFKA_BOOTSTRAP com o endereço do broker (host:porta)}
       S3_KAFKA_GROUP_ID: ${S3_KAFKA_GROUP_ID:-S3-alertas}
+      # Quem pode mandar comandos ao S3 (o broker não tem autenticação).
+      # Vazio = qualquer produtor. Para ligar, ponha no infra/servidor/.env:
+      #   S3_PRODUTORES_COMANDOS=A3,A5,A7
+      S3_PRODUTORES_COMANDOS: ${S3_PRODUTORES_COMANDOS:-}
     volumes:
       - s3-dados:/dados
       # Para outra configuração, descomente e aponte para os arquivos da aplicação:

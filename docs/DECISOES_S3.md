@@ -1,6 +1,6 @@
 # Decisões do S3 — Alertas e Notificações (VER-3)
 
-*Atualizado em 21/10/2026. Os números seguem as pendências do [README](../README.md).*
+*Criado em 21/10/2026 e atualizado em 05/11/2026. Os números são os das pendências levantadas em 21/10 (antes listadas no README).*
 
 Cada decisão tem uma origem:
 
@@ -62,4 +62,4 @@ Recomendação ao S4, sem bloquear o S3: `correlation_id` = `event_id` na captur
   - **Garantia:** entrega pelo menos uma vez, com o mesmo `message_id` no reenvio. Consumidores descartam repetidos pelo `message_id` (seção 2, regra 7).
   - **Confirmação de entrega do Kafka:** só conta o relatório `on_delivery` sem erro.
   - **Contratos afetados:** nenhum. Só melhora o cumprimento da idempotência (regra 6), da deduplicação (regra 7) e do `sequence` (seção 3).
-- **Teste real com S2 e aplicações:** em 21/10/2026, eles ainda não conseguem mandar e receber mensagens. As confirmações desta tabela entram nesse teste. O roteiro está em [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).
+- **Teste real com S2 e aplicações:** até 05/11/2026, o S2 ainda não publicou no broker; as aplicações receberam os contratos e não fizeram objeção. As confirmações desta tabela entram nesse teste. O roteiro está em [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).

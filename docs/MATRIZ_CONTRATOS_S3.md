@@ -1,12 +1,12 @@
 # Matriz de contratos do S3 — Alertas e Notificações (VER-3)
 
-*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Estado do código em 21/10/2026: 231 testes passando. Decisões de 21/10/2026 incluídas: `session_id` opcional em alerta de comando, S3 consumindo `ods.s4.clip` e bloqueio de produtor pelo B3.*
+*Referência: Especificação de interfaces 1.0, arquitetura 6c (`ods-6cfinal.html`, publicada pela TRA-1; não fica no repositório). Criada em 21/10/2026 (231 testes) e revista em 05/11/2026 (394 testes). Decisões de 21/10/2026 incluídas: `session_id` opcional em alerta de comando e S3 consumindo `ods.s4.clip`. O bloqueio de produtor pelo B3 foi revisto: o broker não tem autenticação (TRA-1, 04/11).*
 
 Cada afirmação traz uma marca:
 
 - **[Oficial]**: está escrito na especificação (a seção vem entre parênteses).
 - **[Código]**: é o que o S3 faz hoje, conferido no código e nos testes.
-- **[Pendente]**: depende de decisão de outra equipe; o número remete à lista de pendências do [README.md](../README.md).
+- **[Pendente]**: depende de decisão de outra equipe; o número remete às pendências de [DECISOES_S3.md](DECISOES_S3.md).
 - **[Recomendação]**: é proposta técnica do VER-3, ainda sem aprovação.
 
 ## 1. Situação de cada contrato
@@ -102,7 +102,7 @@ Nenhum contrato aparece como "Conforme" sem ressalva: nada foi testado no broker
 |---|---|---|---|
 | Validação contratual | O `producer` declarado está na lista do contrato? | S3, com o código de erro definido por B1 | Pendência 19 |
 | Autenticação | A mensagem veio mesmo de quem diz `producer`? | B3: credenciais por aplicação no broker | Pendência 19. O campo `producer` é só declarado e qualquer cliente pode escrever qualquer valor |
-| Autorização de tópico | Esse cliente pode escrever em `ods.s3.alert_action.command`? | B3: ACL por tópico | Pendência 19 |
+| Autorização de tópico | Esse cliente pode escrever em `ods.s3.alert_action.command`? | Sem autenticação no broker (04/11), não há ACL; o S3 tem `--produtores`, desligado | Pendência 19 |
 | Autorização de pessoa | O `actor` (`user:maria`) pode silenciar ou encerrar? | A5 e as demais aplicações, no backend | Pendência 8 |
 
 ### Opções para rejeitar um produtor inesperado [Recomendação]
@@ -115,8 +115,10 @@ Nenhum contrato aparece como "Conforme" sem ressalva: nada foi testado no broker
 
 **Decisão de 21/10/2026: opção D, "o B3 resolve".** O bloqueio fica no broker, e o S3 não ganha código de erro novo. Antes da decisão, a proposta era D com A como defesa no S3. Até o B3 configurar as ACLs, o S3 continua aceitando, e a divergência fica registrada aqui. Num ambiente de produção, cada build só tem a própria aplicação; na build do A5, por exemplo, só o A5 deveria enviar comandos ao S3. Restringir o S3 ao `producer` da própria build seria configuração da build, não regra do contrato.
 
+**Revisão de 05/11/2026:** o broker não tem autenticação (TRA-1, 04/11), então o bloqueio no B3 não existe. O S3 ganhou a opção `--produtores` (`S3_PRODUTORES_COMANDOS`): comando de outro `producer` recebe `INVALID_MESSAGE`, o código já usado para eventos e clipes de outro produtor, sem código novo. Fica desligada até a TRA-1 concordar.
+
 ## 4. Decisões externas ligadas a esta matriz
 
-Os problemas completos, com equipe, pergunta e impacto, estão na seção "Pendências com outras equipes" do [README.md](../README.md). A matriz depende principalmente das pendências 4, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17, 18 e 19.
+Os problemas completos, com equipe, pergunta e impacto, estão em [DECISOES_S3.md](DECISOES_S3.md). A matriz depende principalmente das pendências 4, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17, 18 e 19.
 
 O roteiro de integração está em [CHECKLIST_INTEGRACAO_S3.md](CHECKLIST_INTEGRACAO_S3.md).

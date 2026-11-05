@@ -35,6 +35,12 @@ O `infra/servidor/instalar.sh` instala o Docker se faltar, guarda o broker em
 instalado processou um evento e religou depois de `down`/`up` lendo o `.env`.
 Para atualizar: `bash infra/servidor/instalar.sh 34.66.235.91:9093 --atualizar`.
 
+**Aceitar comandos só de A3, A5 e A7** (desligado por padrão; ligar quando a TRA-1
+concordar): acrescente `S3_PRODUTORES_COMANDOS=A3,A5,A7` ao `infra/servidor/.env` e
+rode `docker compose -f infra/servidor/docker-compose.yml up -d`. Comandos de outro
+`producer` passam a receber ERROR `INVALID_MESSAGE`. O log da partida mostra
+"comandos aceitos só de: A3, A5, A7".
+
 **Verificação mínima no broker** (uma vez, na janela combinada com a TRA-1):
 
 ```bash

@@ -4,7 +4,7 @@ import unittest
 from uuid import uuid4
 
 from s3.commands import ProcessadorComandos
-from s3.errors import ErroS3
+from s3.errors import INVALID_MESSAGE, ErroS3
 from s3.service import AlertService
 
 from fabricas import (
@@ -295,6 +295,63 @@ class TestConsulta(BaseComandos):
             with self.subTest(payload=payload):
                 resposta = self.enviar(comando(CONSULTA, payload))
                 self.assertEqual(resposta["payload"]["status"], "ERROR")
+
+
+class TestProdutoresDeComando(BaseComandos):
+    """
+    O broker não tem autenticação (TRA-1, 04/11/2026): com a lista de
+    produtores, o S3 só atende comandos e consultas de quem está nela.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.processador = ProcessadorComandos(
+            self.service, produtores=frozenset({"A3", "A5", "A7"})
+        )
+
+    def criar(self, produtor):
+        return comando(CRIAR, {
+            "title": "Teste", "message": "Teste", "severity": "LOW",
+            "recipients": ["role:supervisor"], "channels": ["SCREEN"],
+        }, producer=produtor)
+
+    def test_produtor_da_lista_e_atendido(self):
+        for schema, dados in (
+            (ACAO, {**self.acao("ACKNOWLEDGE"), "producer": "A7"}),
+            (CRIAR, self.criar("A3")),
+            (CONSULTA, comando(CONSULTA, {}, producer="A5")),
+        ):
+            with self.subTest(schema=schema):
+                self.assertEqual(self.enviar(dados)["payload"]["status"], "OK")
+
+    def test_produtor_fora_da_lista_recebe_erro_e_nada_muda(self):
+        alertas_antes = len(self.service.consultar_alertas()[0])
+
+        for dados in (
+            {**self.acao("CLOSE"), "producer": "A2"},
+            self.criar("S5"),
+            comando(CONSULTA, {}, producer="A1"),
+        ):
+            with self.subTest(schema=dados["schema"]):
+                resposta = self.enviar(dados)
+                self.assertEqual(resposta["correlation_id"], dados["message_id"])
+                self.assertEqual(resposta["payload"]["error"]["code"], INVALID_MESSAGE)
+
+        self.assertEqual(len(self.service.consultar_alertas()[0]), alertas_antes)
+        self.assertEqual(self.service.repository.buscar_por_id(self.alerta_id).estado, "CREATED")
+
+    def test_comando_recusado_repetido_recebe_a_mesma_resposta(self):
+        dados = {**self.acao("CLOSE"), "producer": "A2"}
+
+        self.assertEqual(self.enviar(dados), self.enviar(dados))
+
+    def test_sem_lista_qualquer_produtor(self):
+        processador = ProcessadorComandos(self.service)
+        resposta = json.loads(processador.receber(json.dumps(
+            {**self.acao("ACKNOWLEDGE"), "producer": "A2"}
+        )))
+
+        self.assertEqual(resposta["payload"]["status"], "OK")
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ O broker de testes é pago e compartilhado: use sempre
 import argparse
 import json
 import logging
+import os
 import signal
 
 from s3.commands import ProcessadorComandos
@@ -34,6 +35,9 @@ from s3.subscription import (
     ConectorEventos,
     DespachanteS3,
 )
+
+
+VARIAVEL_PRODUTORES = "S3_PRODUTORES_COMANDOS"
 
 
 def main() -> None:
@@ -60,12 +64,25 @@ def main() -> None:
         "--banco", default="s3.sqlite3",
         help="Arquivo SQLite com alertas, histórico e fila de saída",
     )
+    parser.add_argument(
+        "--produtores",
+        default=os.environ.get(VARIAVEL_PRODUTORES, ""),
+        help=(
+            "Quem pode mandar comandos e consultas ao S3, separado por "
+            "vírgula (ex.: A3,A5,A7). Padrão: a variável "
+            f"{VARIAVEL_PRODUTORES}; vazio = qualquer produtor"
+        ),
+    )
     parser.add_argument("--max-mensagens", type=int)
     parser.add_argument("--tempo-limite", type=float)
     argumentos = parser.parse_args()
 
     if argumentos.max_mensagens is None and argumentos.tempo_limite is None:
         parser.error("Informe --max-mensagens ou --tempo-limite.")
+
+    produtores = frozenset(
+        p.strip() for p in argumentos.produtores.split(",") if p.strip()
+    ) or None
 
     logging.basicConfig(level=logging.INFO)
 
@@ -92,6 +109,14 @@ def main() -> None:
             "sem --permissoes: qualquer actor user:<id> pode reconhecer, silenciar e encerrar"
         )
 
+    if produtores:
+        logging.info("comandos aceitos só de: %s", ", ".join(sorted(produtores)))
+    else:
+        logging.warning(
+            "sem --produtores: qualquer produtor pode mandar comandos ao S3 "
+            "(o broker não tem autenticação)"
+        )
+
     repository = SqliteAlertRepository(argumentos.banco)
     publicador = PublicadorKafka()
     service = AlertService(
@@ -107,7 +132,7 @@ def main() -> None:
     assinante = AssinanteKafka(topicos=topicos_entrada(roteador is not None))
     DespachanteS3(
         ConectorEventos(assinante, IngestorEventos(service)),
-        ConectorComandos(assinante, ProcessadorComandos(service, permissoes), publicador),
+        ConectorComandos(assinante, ProcessadorComandos(service, permissoes, produtores), publicador),
         ConectorEventos(assinante, IngestorClipes(service)),
     ).conectar(assinante)
 

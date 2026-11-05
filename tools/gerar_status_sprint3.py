@@ -231,14 +231,15 @@ historia = [
         ["A2 (VER-2)", "Não vai usar o S3", "Sai das verificações"],
         ["A3 (VER-6)", "Vai precisar do histórico", "Usa ods.s3.alerts.query; falta saber se quer a lista de alertas ou a trilha de ações"],
         ["S4 (MOD-2)", "Campos alinhados; clipe chega depois do alerta; media_uri resolvido pelo S4", "Confirma o desenho; o exemplo real ainda é rejeitado (4 correções, já testadas)"],
-        ["TRA-1 (04/11)", "Contratos aparentemente compatíveis; broker sem autenticação; tópicos seguem a especificação; o resto fica para a aula de 05/11", "Nomes dos tópicos aprovados, sem mudar código. Sem autenticação, o broker não barra remetentes: decidir na aula"],
+        ["TRA-1 (04/11)", "Contratos aparentemente compatíveis; broker sem autenticação; tópicos seguem a especificação", "Nomes dos tópicos aprovados, sem mudar código. Sem autenticação, o broker não barra remetentes: decidir com a TRA-1"],
+        ["TRA-1 (05/11)", "Livres para criar os tópicos (o broker também cria sozinho); o S3 pode ficar ligado", "O script de instalação cria os tópicos do S3 antes de ligar o S3 (testado num Kafka vazio)"],
         ["B1/B2 (21/10)", "session_id opcional em alerta de comando; S3 consome ods.s4.clip", "Falta escrever na especificação"],
     ], [3, 7.5, 7]),
 
     p("3. O que depende de resposta de outras equipes", h2),
     tabela(["Equipe", "O que precisamos", "Bloqueia"], [
         ["<b>Servidor</b> (quem pediu)", "Qual máquina e como entrar nela (SSH); prometido para breve", "Instalação no servidor e a verificação no broker oficial"],
-        ["<b>TRA-1 (B3)</b>", "Na aula de 05/11: se os tópicos do S3 existem no broker; se o S3 pode ficar ligado o tempo todo; janela de teste; chave alert_id; como barrar comandos de outros squads sem autenticação", "S3.2 e S3.6 no broker oficial"],
+        ["<b>TRA-1 (B3)</b>", "Respostas aos comandos em .reply; chave alert_id; grupo S3-alertas; como barrar comandos de outros squads sem autenticação; quem fornece o servidor", "S3.2 e S3.6 no broker oficial"],
         ["<b>TRA-1 (B1)</b>", "Escrever na especificação: session_id opcional, S3 consumidor de ods.s4.clip, republicação ao vincular o clipe, códigos INVALID_PAYLOAD, INVALID_MESSAGE e UNAUTHORIZED_ACTOR; texto da regra 7 (deduplicação); validador oficial", "S3.1 (cenários de B1)"],
         ["<b>TRA-2 (B2)</b>", "Confirmar que o S3 não consome ods.session.started", "Nada (provisória)"],
         ["<b>S2 (VER-6)</b>", "Publicar ods.s2.event de verdade; usar event_id como chave de partição; avisar quando estiver pronto", "S3.2 e o fluxo S2 → S3 → A5 real"],
@@ -261,8 +262,8 @@ historia = [
     ], feito=True),
     p("<b>Próximos</b>", h3),
     lista([
-        ("Juntar na main", "Script e CI já estão no GitHub (feature/docker); falta enviar a verificação e fazer o pull request"),
-        ("Aula de 05/11 com a TRA-1", "Tópicos existem? Pode ficar ligado? Janela de teste? Como barrar comandos sem autenticação?"),
+        ("Juntar na main", "A main já tem o script, a verificação e o CI (CI passou nela); falta a criação de tópicos de 05/11"),
+        ("Resto das perguntas à TRA-1", "Folha docs/PERGUNTAS_TRA1_AULA_0511.pdf: 1 e 2 respondidas; faltam .reply, chave alert_id, grupo, barrar comandos, especificação, validador e servidor"),
         ("Instalar no servidor e rodar a verificação", "Quando o servidor chegar: 3 comandos, uns 3 minutos; tirar a captura da verificação (evidência do S3.2)"),
         ("S3.5 no A5 (squad VER-3)", "O backend do A5 usar o kit: consumir ods.s3.alert, tocar o som, mostrar na tela, mandar o push e parar em ACK, MUTE e CLOSE"),
         ("Cobrar as respostas", "S4 (as 4 correções), A3, A7, S2, TRA-2 e P3"),
@@ -270,7 +271,7 @@ historia = [
 
     p("5. Escolhas em aberto", h2),
     tabela(["Escolha", "Recomendação", "Por quê"], [
-        ["Barrar comandos de outros squads (o broker não tem autenticação)", "Decidir com a TRA-1; opção simples: aceitar só producer A3, A5 ou A7", "O campo pode ser falsificado, mas evita comando enviado por engano; o actor continua conferido pelas permissões"],
+        ["Barrar comandos de outros squads (o broker não tem autenticação)", "Opção pronta e testada, desligada: --produtores A3,A5,A7 (ou S3_PRODUTORES_COMANDOS). Ligar quando a TRA-1 concordar", "O campo pode ser falsificado, mas evita comando enviado por engano; o actor continua conferido pelas permissões"],
         ["Banco: SQLite ou banco de servidor", "SQLite, um arquivo por instância", "Uma instância do S3 por build; no servidor fica num volume do Docker"],
         ["Republicar o alerta ao vincular o clipe", "Manter e pedir confirmação ao B1", "Sem isso, o clipe só aparece na consulta de histórico"],
         ["Paginação com mais de limit alertas no mesmo milissegundo", "Aceitar como limitação documentada", "Caso raro; a solução seria um cursor novo no contrato"],
@@ -281,8 +282,7 @@ historia = [
     p("6. Riscos", h2),
     tabela(["Risco", "Efeito", "Como reduzir"], [
         ["O servidor não chegar a tempo", "S3.2 e S3.6 sem prova no broker oficial", "Instalação ensaiada (3 min) e verificação pronta; até lá, a prova é o Kafka local"],
-        ["Tópicos do S3 inexistentes no broker oficial", "O S3 liga, mas não recebe nada", "Perguntar na aula de 05/11; o script de instalação e a verificação avisam quando faltam"],
-        ["Comandos de qualquer squad (broker sem autenticação)", "Alguém agir sobre alertas sem ser A3, A5 ou A7", "O actor já é conferido pelas permissões; decidir com a TRA-1 a conferência do producer"],
+                ["Comandos de qualquer squad (broker sem autenticação)", "Alguém agir sobre alertas sem ser A3, A5 ou A7", "O actor já é conferido pelas permissões; a conferência do producer está pronta, falta a TRA-1 concordar para ligar"],
         ["Dois S3 ligados no mesmo broker", "Respostas contraditórias às aplicações", "Um S3 só, no servidor; o kit e o teste local recusam o broker do projeto"],
         ["Créditos de nuvem acabarem", "Servidor e broker fora do ar", "Máquina pequena, desligada fora dos testes; CI no GitHub, não na nuvem"],
         ["S2 e aplicações não ficarem prontos", "Sem fluxo S2 → S3 → A5 real", "Kit para o backend do A5 testar sem o S2; demonstração do Kafka local como evidência"],

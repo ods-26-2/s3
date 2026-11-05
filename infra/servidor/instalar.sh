@@ -8,9 +8,9 @@
 #   1. instala o Docker, se faltar;
 #   2. guarda o endereço do broker em infra/servidor/.env (fora do git), para
 #      o `docker compose ... up -d` funcionar depois sem `export`;
-#   3. constrói a imagem e liga o contêiner ods-s3;
-#   4. confere se os tópicos do S3 existem no broker (só lê a lista);
-#   5. mostra o log.
+#   3. constrói a imagem;
+#   4. cria no broker os tópicos do S3 que faltarem (liberado pela TRA-1);
+#   5. liga o contêiner ods-s3 e mostra o log.
 #
 # Pode rodar de novo quando quiser: com --atualizar, faz `git pull` antes.
 set -euo pipefail
@@ -58,31 +58,41 @@ S3_KAFKA_GROUP_ID=S3-alertas
 EOF
 cat "$ENV"
 
-passo "Construindo a imagem e ligando o ods-s3"
-"${DOCKER[@]}" compose -f "$COMPOSE" up -d --build
+passo "Construindo a imagem"
+"${DOCKER[@]}" compose -f "$COMPOSE" build
+
+# Antes de ligar o S3: um tópico criado depois que ele já está escutando
+# pode levar até 5 min para ser percebido. A TRA-1 liberou criar (05/11).
+passo "Tópicos do S3 no broker $BROKER (cria os que faltam)"
+"${DOCKER[@]}" run --rm --entrypoint python ods-s3 -c "
+import sys
+from confluent_kafka.admin import AdminClient, NewTopic
+TOPICOS = ['ods.s2.event', 'ods.s4.clip', 'ods.s3.alert.command', 'ods.s3.alert_action.command',
+           'ods.s3.alerts.query', 'ods.s3.alert', 'ods.s3.alert.reply', 'ods.s3.alert_action.reply',
+           'ods.s3.alerts.reply']
+admin = AdminClient({'bootstrap.servers': '$BROKER'})
+try:
+    existentes = admin.list_topics(timeout=15).topics
+except Exception as erro:
+    sys.exit(f'AVISO: o broker não respondeu ({erro}). O S3 liga, mas confira a rede do servidor.')
+faltam = [t for t in TOPICOS if t not in existentes]
+# -1: partições e réplicas no padrão do broker.
+for topico, futuro in (admin.create_topics([NewTopic(t, -1, -1) for t in faltam]).items() if faltam else []):
+    try:
+        futuro.result()
+        print('criado  ', topico)
+    except Exception as erro:
+        print('AVISO   ', topico, erro)
+for topico in TOPICOS:
+    if topico in existentes:
+        print('já existe', topico)
+print(f'ok: {len(TOPICOS)} tópicos do S3 conferidos')
+" || true
+
+passo "Ligando o ods-s3"
+"${DOCKER[@]}" compose -f "$COMPOSE" up -d
 sleep 5
 "${DOCKER[@]}" compose -f "$COMPOSE" ps
-
-passo "Tópicos do S3 no broker $BROKER (só leitura)"
-ESPERADOS=9
-ENCONTRADOS=$("${DOCKER[@]}" exec ods-s3 python -c "
-from confluent_kafka.admin import AdminClient
-t = AdminClient({'bootstrap.servers': '$BROKER'}).list_topics(timeout=15).topics
-achados = sorted(x for x in t if x.startswith(('ods.s2.', 'ods.s3.', 'ods.s4.')))
-print('\n'.join(achados))
-" || true)
-if [[ -z "$ENCONTRADOS" ]]; then
-    echo "AVISO: nenhum tópico do S3 no broker (ou o broker não respondeu)."
-    echo "       O S3 fica ligado, mas não recebe nada até os tópicos existirem: fale com a TRA-1."
-else
-    echo "$ENCONTRADOS"
-    N=$(echo "$ENCONTRADOS" | wc -l)
-    if (( N < ESPERADOS )); then
-        echo "AVISO: $N de $ESPERADOS tópicos. Os que faltam precisam ser criados (TRA-1)."
-    else
-        echo "ok: $N tópicos."
-    fi
-fi
 
 passo "Últimas linhas do log"
 "${DOCKER[@]}" compose -f "$COMPOSE" logs --tail 20 s3
@@ -91,7 +101,7 @@ cat <<EOF
 
 Pronto. O S3 fica ligado e volta sozinho se a máquina reiniciar.
   verificar:   ${DOCKER[*]} exec ods-s3 python tools/verificar_broker.py --broker-oficial
-               (só na janela combinada com a TRA-1: 4 comandos e 1 consulta, ~5 s)
+               (uma vez: 4 comandos e 1 consulta, ~5 s; tire a captura)
   ver o log:   ${DOCKER[*]} compose -f infra/servidor/docker-compose.yml logs -f s3
   parar:       ${DOCKER[*]} compose -f infra/servidor/docker-compose.yml down
   ligar:       ${DOCKER[*]} compose -f infra/servidor/docker-compose.yml up -d

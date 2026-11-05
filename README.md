@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/ods-26-2/s3/actions/workflows/ci.yml/badge.svg)](https://github.com/ods-26-2/s3/actions/workflows/ci.yml)
 
-**Estado em 05/11/2026.** Referência: *Especificação de interfaces 1.0, arquitetura 6c*. Este documento distingue implementação local, teste automatizado e validação externa. **O S3 está implementado, rodou contra um Kafka local (Docker) e está pronto para o servidor: imagem Docker, script de instalação e verificação no broker testados. Ainda não rodou no broker oficial nem foi validado ponta a ponta com o S2 e o A5 reais: falta o servidor.**
+> **Equipe de implantação:** como construir, configurar e conferir o S3 está em [docs/IMPLANTACAO_EQUIPE.md](docs/IMPLANTACAO_EQUIPE.md). Em resumo: `docker build -t ods-s3 .`, variável `S3_KAFKA_BOOTSTRAP=172.18.4.56:9092`, volume em `/dados`, reinício `always`/`unless-stopped`, uma instância só.
+
+**Estado em 05/11/2026.** Referência: *Especificação de interfaces 1.0, arquitetura 6c*. Este documento distingue implementação local, teste automatizado e validação externa. **O S3 está implementado, rodou contra um Kafka local (Docker) e está pronto para ser implantado na Jetson (imagem ARM testada). A implantação fica com a equipe especializada indicada pelo professor. Ainda não rodou no broker da Jetson nem foi validado ponta a ponta com o S2 e o A5 reais.**
 
 Situação detalhada: [docs/SITUACAO_SPRINT3_S3.pdf](docs/SITUACAO_SPRINT3_S3.pdf) · Servidor: [docs/PASSO_A_PASSO_SERVIDOR_S3.pdf](docs/PASSO_A_PASSO_SERVIDOR_S3.pdf)
 

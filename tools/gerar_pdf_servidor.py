@@ -134,12 +134,13 @@ def etapa(numero, nome, situacao, onde, *conteudo):
 ETAPAS = [
     ("Código pronto e testado", FEITO, "Imagem Docker testada contra o Kafka local em 04/11; 385 testes passando"),
     ("Script de instalação testado", FEITO, "infra/servidor/instalar.sh rodado num Ubuntu 24.04 limpo em 04/11: instalou o Docker, ligou o S3 e processou um evento"),
-    ("Integração contínua (GitHub Actions)", FEITO, "Testes, cobertura e imagem a cada push; passos conferidos num contêiner Linux. Roda no GitHub depois do push"),
-    ("Enviar o script e o CI para a main", FALTA, f"A main está no commit {COMMIT}, sem o instalar.sh e o .github/workflows/ci.yml"),
+    ("Verificação mínima no broker", FEITO, "tools/verificar_broker.py, dentro da imagem; passou contra o Kafka local em 4 s"),
+    ("Integração contínua (GitHub Actions)", FEITO, "Testes, cobertura e imagem a cada push; a primeira execução no GitHub passou (04/11, commit ea1ae2d)"),
+    ("Juntar na main", FALTA, f"Script e CI já no GitHub (feature/docker); falta a verificação e o merge. A main está em {COMMIT}"),
     ("Descobrir o servidor e como entrar nele", FALTA, "Com quem pediu o S3 no servidor"),
     ("Confirmar dois pontos com a TRA-1", FALTA, "Na aula de 05/11"),
     ("Entrar no servidor e rodar o script", FALTA, "No servidor: 3 comandos, uns 3 minutos"),
-    ("Conferir que está funcionando", FALTA, "No servidor"),
+    ("Conferir e rodar a verificação no broker", FALTA, "No servidor, na janela combinada com a TRA-1"),
 ]
 
 historia = [
@@ -185,23 +186,34 @@ historia = [
                ["S3 instalado processa um evento", "evento publicado virou alerta (alerta_criado, CREATED)"],
            ], [9, 8.5])),
 
-    *etapa(3, "Integração contínua (GitHub Actions)", FEITO, ".github/workflows/ci.yml",
+    *etapa(3, "Verificação mínima no broker", FEITO, "tools/verificar_broker.py (vai dentro da imagem)",
+           p("Um comando, para rodar uma vez no servidor, que prova o S3 no broker real gastando o mínimo. Faz o papel do "
+             "A5 (aplicação do VER-3), sem se passar pelo S2: confere os 9 tópicos, cria um alerta de teste por comando "
+             "(\"[TESTE S3]\"), espera o ods.s3.alert, dá ACKNOWLEDGE e CLOSE (o alerta de teste não fica aberto nas "
+             "aplicações) e consulta o histórico. São 4 comandos e 1 consulta; os consumidores começam do fim dos tópicos."),
+           tabela(["No teste contra o Kafka local (04/11)", "Resultado"], [
+               ["Com o S3 ligado", "tudo ok em 4 s; 4 mensagens enviadas, 7 recebidas"],
+               ["Endereço fora de localhost sem --broker-oficial", "recusa antes de conectar"],
+               ["Com o S3 desligado", "falha em 15 s: \"não chegou a resposta... O S3 está ligado?\""],
+           ], [9, 8.5])),
+
+    *etapa(4, "Integração contínua (GitHub Actions)", FEITO, ".github/workflows/ci.yml",
            p("A cada push e pull request, o GitHub roda a suíte com cobertura e constrói a imagem do servidor. "
              "Roda nos servidores do GitHub: <b>não gasta os créditos do professor</b> nem usa o broker. "
              "Os mesmos passos foram conferidos num contêiner Linux com Python 3.12: 385 testes passando, 98% de "
-             "cobertura, imagem construída e S3 abrindo dentro dela. O resultado aparece na aba <b>Actions</b> do "
-             "repositório depois do push.")),
+             "cobertura, imagem construída e S3 abrindo dentro dela. <b>A primeira execução no GitHub passou</b> "
+             "(04/11, commit ea1ae2d); o resultado de cada push aparece na aba <b>Actions</b> do repositório.")),
 
-    *etapa(4, "Enviar o script e o CI para a main", FALTA, "Na sua máquina",
+    *etapa(5, "Juntar na main", FALTA, "Na sua máquina (o script e o CI já foram, no commit ea1ae2d)",
            codigo("""
 git add -A
-git commit -m "Script de instalação do servidor e integração contínua"
+git commit -m "Verificação mínima no broker e relatórios atualizados"
 git push
 """),
            Spacer(1, 3),
            p("Depois, juntar na main (pull request), como da outra vez. O servidor baixa o código da main.")),
 
-    *etapa(5, "Descobrir o servidor e como entrar nele", FALTA, "Com quem pediu o S3 no servidor (professor, TRA-1 ou P3/SIS-1)",
+    *etapa(6, "Descobrir o servidor e como entrar nele", FALTA, "Com quem pediu o S3 no servidor (professor, TRA-1 ou P3/SIS-1)",
            tabela(["Pergunta", "Por quê"], [
                ["Qual máquina? (endereço IP ou nome; Google Cloud ou outra)", "É para onde você vai entrar"],
                ["Como entrar? (usuário e senha, ou chave SSH)", "Sem acesso não há como instalar nada"],
@@ -209,7 +221,7 @@ git push
                ["A máquina tem saída para a internet e para o broker?", f"Para baixar o código e alcançar {BROKER}; não precisa abrir porta de entrada"],
            ], [8.5, 9])),
 
-    *etapa(6, "Confirmar dois pontos com a TRA-1", FALTA, "Na aula de 05/11",
+    *etapa(7, "Confirmar dois pontos com a TRA-1", FALTA, "Na aula de 05/11",
            tabela(["Pergunta", "Se a resposta for não"], [
                ["Os tópicos do S3 já existem no broker, ou o broker cria na primeira mensagem?",
                 "O S3 liga, mas não recebe nada, e guarda o que tentar publicar na fila de saída. Pedir à TRA-1 para criar os tópicos. O script avisa quando faltam"],
@@ -217,7 +229,7 @@ git push
                 "Ligar só na janela de teste e desligar depois (comando de parar, abaixo)"],
            ], [8, 9.5])),
 
-    *etapa(7, "Entrar no servidor e rodar o script", FALTA, "No seu terminal, depois dentro do servidor",
+    *etapa(8, "Entrar no servidor e rodar o script", FALTA, "No seu terminal, depois dentro do servidor",
            codigo(f"""
 ssh usuario@ENDERECO_DO_SERVIDOR
 sudo apt-get install -y git                    # só se o git faltar
@@ -229,13 +241,18 @@ bash infra/servidor/instalar.sh {BROKER}
              "encontrados (<b>ok: 9 tópicos</b> é o esperado) e as últimas linhas do log. "
              "Para fazer tudo à mão, os comandos estão em <font face='Consolas'>docs/IMPLANTACAO_SERVIDOR.md</font>.")),
 
-    *etapa(8, "Conferir que está funcionando", FALTA, "Dentro do servidor, na pasta s3",
+    *etapa(9, "Conferir e rodar a verificação no broker", FALTA, "Dentro do servidor, na pasta s3",
            codigo(f"""
 docker compose -f {COMPOSE} ps          # ods-s3 deve estar "Up"
 docker compose -f {COMPOSE} logs -f s3  # Ctrl+C sai do log; o S3 continua ligado
 """),
            Spacer(1, 3),
-           p("Quando o S2 ou o A5 mandarem algo, o log mostra <font face='Consolas'>entrada ... resultado=alerta_criado</font> "
+           Spacer(1, 3),
+           p("Na janela combinada com a TRA-1, a verificação (etapa 3). O esperado é terminar com <b>Tudo certo</b>; "
+             "tire a captura: é a evidência do S3.2 no broker real."),
+           codigo("docker exec ods-s3 python tools/verificar_broker.py --broker-oficial"),
+           Spacer(1, 3),
+           p("Depois, quando o S2 ou o A5 mandarem algo, o log mostra <font face='Consolas'>entrada ... resultado=alerta_criado</font> "
              "e <font face='Consolas'>saida ... state=CREATED</font>.")),
 
     p("No dia a dia", h2),

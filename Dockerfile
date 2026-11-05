@@ -18,6 +18,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
+# Verificação mínima no broker real, depois da instalação:
+#   docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
+COPY tools/verificar_broker.py tools/
 
 # Configuração de exemplo do A5 (a mesma de contratos/). Para usar outra,
 # monte arquivos por cima de /config/routing.json e /config/permissoes.json.

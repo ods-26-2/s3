@@ -35,6 +35,21 @@ O `infra/servidor/instalar.sh` instala o Docker se faltar, guarda o broker em
 instalado processou um evento e religou depois de `down`/`up` lendo o `.env`.
 Para atualizar: `bash infra/servidor/instalar.sh 34.66.235.91:9093 --atualizar`.
 
+**Verificação mínima no broker** (uma vez, na janela combinada com a TRA-1):
+
+```bash
+docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
+```
+
+Faz o papel do A5: confere os 9 tópicos, cria um alerta de teste por comando
+("[TESTE S3]"), espera o `ods.s3.alert`, dá ACKNOWLEDGE e CLOSE como
+`user:maria` (o alerta de teste não fica aberto nas aplicações) e consulta o
+histórico. São 4 comandos e 1 consulta; os consumidores começam do fim dos
+tópicos e tudo termina em 60 s. Não publica em `ods.s2.event`. Testado contra o
+Kafka local em 04/11/2026: passou em 4 s. Se o S3 estiver desligado, falha com
+"não chegou a resposta", e o comando de teste fica no tópico: o S3 cria esse
+alerta quando ligar (encerre-o com CLOSE).
+
 ## Opção A — Docker, à mão
 
 No servidor, com o repositório clonado (`git clone https://github.com/ods-26-2/s3.git`):

@@ -90,6 +90,8 @@ passo "Últimas linhas do log"
 cat <<EOF
 
 Pronto. O S3 fica ligado e volta sozinho se a máquina reiniciar.
+  verificar:   ${DOCKER[*]} exec ods-s3 python tools/verificar_broker.py --broker-oficial
+               (só na janela combinada com a TRA-1: 4 comandos e 1 consulta, ~5 s)
   ver o log:   ${DOCKER[*]} compose -f infra/servidor/docker-compose.yml logs -f s3
   parar:       ${DOCKER[*]} compose -f infra/servidor/docker-compose.yml down
   ligar:       ${DOCKER[*]} compose -f infra/servidor/docker-compose.yml up -d

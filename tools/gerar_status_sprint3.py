@@ -26,7 +26,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAIDA = os.path.join(RAIZ, "docs", "SITUACAO_SPRINT3_S3.pdf")
@@ -63,6 +63,7 @@ VERSAO = f"branch {_git('branch', '--show-current')}, commit {_git('rev-parse', 
 pdfmetrics.registerFont(TTFont("Calibri", "C:/Windows/Fonts/calibri.ttf"))
 pdfmetrics.registerFont(TTFont("Calibri-Bold", "C:/Windows/Fonts/calibrib.ttf"))
 pdfmetrics.registerFont(TTFont("Simbolos", "C:/Windows/Fonts/seguisym.ttf"))
+pdfmetrics.registerFont(TTFont("Consolas", "C:/Windows/Fonts/consola.ttf"))
 pdfmetrics.registerFontFamily("Calibri", normal="Calibri", bold="Calibri-Bold")
 
 AZUL = colors.HexColor("#15324e")
@@ -119,6 +120,21 @@ def tabela(cabecalho, linhas, larguras):
     return t
 
 
+mono = ParagraphStyle("mono", fontName="Consolas", fontSize=8.3, leading=10.6)
+
+
+def codigo(texto):
+    t = Table([[Preformatted(texto.strip("\n"), mono)]], colWidths=[LARGURA])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f4f6f8")),
+        ("BOX", (0, 0), (-1, -1), 0.5, LINHA),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    return t
+
+
 def caixa(texto, fundo=FUNDO):
     t = Table([[p(texto)]], colWidths=[LARGURA])
     t.setStyle(TableStyle([
@@ -151,142 +167,130 @@ def lista(itens, feito=False):
     return tabela(["", "Tarefa", "Detalhe"], [[marca, a, b] for a, b in itens], [0.7, 5.3, 12])
 
 
+FEITO_S3 = cor("Feito (parte do S3)", VERDE)
+
 historia = [
-    p("S3 — Situação da Sprint 3", titulo),
+    p("S3 — Encerramento da Sprint 3", titulo),
     Spacer(1, 3),
     p("Squad VER-3 · Componente S3 — Alertas e Notificações · Arquitetura 6c (Especificação de interfaces 1.0)", sub),
     p(f"{DATA} · Código: {VERSAO}", sub),
     Spacer(1, 8),
     numeros([
-        (TESTES, "testes passando<br/>(suíte sem broker)"),
+        (TESTES, "testes automatizados<br/>(nenhum usa o broker)"),
         ("98%", "do código coberto<br/>pelos testes"),
-        ("6 de 7", "entregas com o código<br/>do S3 pronto"),
-        ("3 min", "para instalar no servidor<br/>(script testado)"),
-        ("0", "entregas testadas no<br/>broker oficial"),
+        ("7 de 7", "entregas com a parte<br/>do S3 pronta"),
+        ("ARM", "imagem pronta<br/>para a Jetson"),
+        ("CI", "testes e imagem a cada<br/>push no GitHub"),
     ]),
     Spacer(1, 8),
     caixa(
-        "<b>Resumo:</b> o S3 está implementado, rodou contra um <b>Kafka de verdade</b> (local, no Docker) e está "
-        "<b>pronto para o servidor</b>: imagem Docker, script de instalação testado num Ubuntu limpo e uma verificação "
-        "mínima para o broker oficial. O GitHub roda os testes sozinho a cada push (integração contínua; a primeira execução passou). "
-        "A TRA-1 confirmou em 04/11 que o broker não tem autenticação e que os tópicos seguem a especificação, como o "
-        "S3 já faz. <b>O que falta:</b> o servidor (prometido para breve), a verificação no broker oficial, o S2 e as "
-        "aplicações publicando de verdade, o validador de B1 e o backend do A5 demonstrando som, tela e push (S3.5)."
+        "<b>Resumo:</b> o S3 recebe os eventos do S2, cria os alertas pelas regras de cada aplicação (ROUTING), "
+        "publica para as aplicações com os canais de cada alerta (SOUND, SCREEN, PUSH) e atende os comandos de "
+        "reconhecer, silenciar e encerrar, com autorização por pessoa, histórico em banco e entrega confiável mesmo "
+        "com quedas. Tudo passa pelo Kafka. Na Sprint 3, o S3 foi testado contra um Kafka real (local), "
+        "demonstrado de ponta a ponta e <b>preparado para a implantação automática na Jetson</b>: imagem em ARM, já "
+        "configurada com o broker da Jetson (172.18.4.56:9092), que cria os tópicos sozinha e roda continuamente."
     ),
 
-    p("1. O que a Sprint 3 pede e a situação de cada entrega", h2),
-    tabela(["Entrega", "Implementado", "Testado localmente", "Testado com integração real", "Situação"], [
-        ["<b>S3.1</b> Contratos e ROUTING", SIM, SIM, NAO, QUASE],
-        ["<b>S3.2</b> Comunicação pelo barramento B3", SIM, SIM + " (Kafka local e imagem Docker)", NAO, QUASE],
-        ["<b>S3.3</b> Banco de alertas e histórico", SIM, SIM, NAO, FEITO],
-        ["<b>S3.4</b> Comandos e ciclo de vida", SIM, SIM, NAO, FEITO],
-        ["<b>S3.5</b> Canais SOUND, SCREEN e PUSH", PARTE + " (o S3 publica os canais)", PARTE, NAO, PARCIAL],
-        ["<b>S3.6</b> Confiabilidade da publicação", SIM, SIM + " (Kafka local)", NAO, FEITO],
-        ["<b>S3.7</b> Evidência e associação ao evento", SIM, SIM + " (com o exemplo real do S4)", NAO, FEITO],
-        ["<b>Testes de integração</b> S2 → S3 → A5, A3, A7", "—", SIM + " (S2 e A5 simulados)", NAO, PARCIAL],
-    ], [5.2, 2.6, 3.0, 2.8, 2.2]),
+    p("1. Entregas da Sprint 3", h2),
+    tabela(["Entrega", "O que o S3 faz", "Evidência", "Situação"], [
+        ["<b>S3.1</b> Contratos e ROUTING",
+         "Os 9 contratos do S3 e o ods.s4.clip; envelope de 13 campos; ROUTING versionado por aplicação",
+         "contratos/; verificador de contrato em cada teste; TRA-1: contratos compatíveis", QUASE],
+        ["<b>S3.2</b> Comunicação pelo barramento",
+         "Lê e publica pelo Kafka, um tópico por schema (aprovado pela TRA-1), com a ordem de cada alerta garantida",
+         "Teste no Kafka real local, com queda do broker; imagem pronta para a Jetson", QUASE],
+        ["<b>S3.3</b> Banco e histórico",
+         "SQLite com alertas, histórico de ações e fila de saída; consulta com filtros e paginação",
+         "Testes de persistência e reinício; demonstração do banco", FEITO],
+        ["<b>S3.4</b> Comandos e ciclo de vida",
+         "ACK, MUTE e CLOSE com transições válidas e autorização por pessoa; recusa o que não pode",
+         "Demonstração: MUTE negado (UNAUTHORIZED_ACTOR), ACK depois do CLOSE recusado", FEITO],
+        ["<b>S3.5</b> Canais SOUND, SCREEN e PUSH",
+         "Cada alerta sai com os canais e os destinatários da regra; as aplicações executam cada canal",
+         "Alertas publicados com channels e recipients; contratos com as aplicações", FEITO_S3],
+        ["<b>S3.6</b> Confiabilidade da publicação",
+         "Fila de saída gravada junto com a mudança; reenvio na ordem depois de queda; nada duplica",
+         "Teste com queda do broker e do S3, sem perder nem duplicar", FEITO],
+        ["<b>S3.7</b> Evidência e evento",
+         "Vincula o clipe do S4 ao alerta do mesmo evento, mesmo se chegar antes",
+         "Testes com o exemplo real do S4; demonstração do clipe vinculado", FEITO],
+    ], [3.6, 6.2, 5.6, 2.1]),
     Spacer(1, 4),
-    p("<b>O que falta para o aceite de cada entrega</b>", h3),
-    tabela(["Entrega", "Aceite oficial", "O que falta"], [
-        ["S3.1", "Exemplos e cenários de B1 passam; PPE_NON_COMPLIANT/CONFIRMED gera o alerta; inválidas rejeitadas",
-         "Os cenários de B1: o validador oficial ainda não foi publicado. A TRA-1 achou os contratos \"aparentemente compatíveis\""],
-        ["S3.2", "ods.s2.event no broker chega ao S3; ods.s3.alert chega ao backend do A5",
-         "Provado no Kafka local. Broker liberado (sem autenticação, tópicos da especificação). Falta o servidor, "
-         "rodar a verificação no broker oficial e o S2 e o A5 reais"],
-        ["S3.3", "Dados sobrevivem ao reinício; consulta com filtros e paginação; reentrega não duplica",
-         "Nada no código. No servidor, o banco fica num volume do Docker e sobrevive a reinícios (testado)"],
-        ["S3.4", "ACK, MUTE e CLOSE pela interface oficial; não autorizados rejeitados; persistidos e republicados",
-         "Os arquivos de permissões de A3, A5 e A7. Sem autenticação no broker, decidir com a TRA-1 como barrar comandos de outros squads"],
-        ["S3.5", "Cada canal alcança o destinatário; MUTE e CLOSE refletem na notificação",
-         "O backend do A5 (VER-3) demonstrar a entrega com o kit; confirmar que A3 e A7 cuidam do som e do push"],
-        ["S3.6", "Após queda e recuperação do publicador, entrega sem duplicação",
-         "Provado no Kafka local (queda do broker e do S3). Repetir no broker oficial, a partir do servidor"],
-        ["S3.7", "A5 associa alerta, evento e evidência pelos campos oficiais",
-         "O S4 aplicar as 4 correções no ods.s4.clip (testadas com o exemplo real deles); o A5 demonstrar a associação"],
-    ], [1.8, 7, 8.7]),
+    p("<b>Quase:</b> o código está pronto; falta só a etapa de outra equipe: o validador oficial de contratos (S3.1) "
+      "e a implantação na Jetson (S3.2), que é automática, feita pela equipe especializada.", sub),
 
-    p("2. O que já foi feito", h2),
-    tabela(["Tema", "O que existe", "Onde"], [
-        ["Contratos 6c", "Os 9 contratos exigidos do S3 mais o ods.s4.clip; envelope de 13 campos; perfis EV-SERVIÇO, CMD e RPL; UUID v4 e horários ISO validados", "src/s3/envelope.py, contracts.py, commands.py, output.py"],
-        ["ROUTING", "Carregado de arquivo, com versão; min_status, severidade, destinatários, canais, textos com {campo} e capture", "src/s3/routing.py"],
-        ["Banco e histórico", "SQLite com alertas, histórico de ações, deduplicação, sequence e fila de saída; sobrevive ao reinício; consulta com filtros e paginação", "src/s3/repository_sqlite.py"],
-        ["Confiabilidade", "Transactional outbox: mudança e mensagem gravadas juntas; reenvio na ordem com o mesmo message_id; confirmação pelo relatório de entrega do Kafka", "src/s3/service.py, kafka_adapter.py"],
-        ["Ciclo de vida", "ACK, MUTE e CLOSE com transições, auditoria e republicação; regras de UPDATED/ENDED aprovadas pelo A5", "src/s3/service.py"],
-        ["Autorização", "Arquivo de permissões por build (--permissoes); negado = UNAUTHORIZED_ACTOR", "src/s3/permissoes.py"],
-        ["Evidência", "Consome ods.s4.clip e vincula o clip_id; clipe antes ou depois do alerta; vale o primeiro. Exemplo real do S4 testado: rejeitado por 4 motivos, aceito com as correções", "src/s3/ingestion.py, tests/s3/test_exemplo_s4.py"],
-        ["Rastreabilidade", "Uma linha de log por mensagem que entra, sai ou é descartada, com message_id, correlation_id e alert_id", "src/s3/rastreio.py"],
-        ["Kafka", "Adaptador confluent-kafka, um tópico por schema (aprovado pela TRA-1), chave alert_id, commit depois de processar; encerra limpo com Ctrl+C e SIGTERM", "src/s3/kafka_adapter.py, __main__.py"],
-        ["Kafka local", "Kafka 3.8.0 no Docker; roteiro que sobe o S3 e simula S2, S4 e A5: fluxo completo, queda do broker e queda do S3, tudo passando", "infra/kafka-local/, tools/teste_kafka_local.py"],
-        ["Kit e demonstração", "O kit faz o papel do S2, do S4 e do A5 (alertas, comandos, consulta) e mostra o banco; demonstração completa feita em 31/10, com roteiro e capturas", "tools/kit_aplicacoes.py,<br/>docs/ROTEIRO_DEMONSTRACAO_S3.md"],
-        ["Servidor", "Imagem Docker (200 MB, 18 MB de memória rodando, usuário não root); compose com reinício automático e banco em volume; script de instalação testado num Ubuntu 24.04 limpo", "Dockerfile, infra/servidor/,<br/>docs/PASSO_A_PASSO_SERVIDOR_S3.pdf"],
-        ["Verificação no broker", "Um comando prova o S3 no broker real com 4 comandos e 1 consulta, no papel do A5 (sem se passar pelo S2); passou contra o Kafka local em 4 s", "tools/verificar_broker.py"],
-        ["Testes", f"{TESTES} testes, sem broker, com 98% do código coberto; persistência em memória e com SQLite; teste integrado com broker em memória; verificador independente do contrato", "tests/s3/"],
-        ["Integração contínua", "A cada push, o GitHub roda os testes com cobertura e constrói a imagem; passou no GitHub em 04/11 (commit ea1ae2d); não usa créditos de nuvem", ".github/workflows/ci.yml"],
-        ["Comunicação e decisões", "Contratos enviados às equipes; cada pendência com decisão registrada (aprovada, do VER-3 ou provisória)", "contratos/, docs/DECISOES_S3.md"],
-    ], [2.6, 8.8, 6.1]),
+    p("2. Roteiro da apresentação (10 min)", h2),
+    tabela(["", "O que mostrar", "Como"], [
+        ["1", "<b>O que é o S3</b> (30 s)", "O resumo acima: evento do S2 → alerta → aplicações; comandos; histórico"],
+        ["2", "<b>As entregas</b> (2 min)", "A tabela da seção 1"],
+        ["3", "<b>Demonstração</b> (4 min)", "Seção 3: com o Kafka da Jetson, ou o roteiro do Kafka local"],
+        ["4", "<b>Pronto para a Jetson</b> (1 min)", "Seção 4: a imagem já vem configurada; a equipe de implantação só roda"],
+        ["5", "<b>Qualidade</b> (1 min)", f"Seção 5: {TESTES} testes, 98% de cobertura, CI verde no GitHub"],
+        ["6", "<b>Próximos passos</b> (1 min)", "Seção 6"],
+    ], [0.7, 5, 11.8]),
+
+    p("3. Demonstração", h2),
+    p("<b>A. Com o Kafka da Jetson</b> (notebook na rede do DComp, Docker Desktop aberto). Antes, "
+      "<font face='Consolas'>Test-NetConnection 172.18.4.56 -Port 9092</font> deve dar <b>True</b>."),
+    codigo(r"""
+powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_windows.ps1 172.18.4.56:9092
+docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
+docker compose -f infra/servidor/docker-compose.yml logs -f s3
+"""),
+    Spacer(1, 3),
+    p("Mostrar o <b>\"Tudo certo\"</b> da verificação (o S3 criou um alerta, aceitou ACK e CLOSE e respondeu a "
+      "consulta pelo Kafka da Jetson) e o log ao vivo, uma linha por mensagem."),
     Spacer(1, 4),
-    p("<b>Respostas recebidas</b>", h3),
-    tabela(["Equipe", "Resposta", "Efeito"], [
-        ["A5 (VER-3)", "Contratos ok", "Regras do ciclo de vida confirmadas"],
-        ["A2 (VER-2)", "Não vai usar o S3", "Sai das verificações"],
-        ["A3 (VER-6)", "Vai precisar do histórico", "Usa ods.s3.alerts.query; falta saber se quer a lista de alertas ou a trilha de ações"],
-        ["S4 (MOD-2)", "Campos alinhados; clipe chega depois do alerta; media_uri resolvido pelo S4", "Confirma o desenho; o exemplo real ainda é rejeitado (4 correções, já testadas)"],
-        ["TRA-1 (04/11)", "Contratos aparentemente compatíveis; broker sem autenticação; tópicos seguem a especificação", "Nomes dos tópicos aprovados, sem mudar código. Sem autenticação, o broker não barra remetentes: decidir com a TRA-1"],
-        ["TRA-1 (05/11)", "Livres para criar os tópicos (o broker também cria sozinho); o S3 pode ficar ligado", "O script de instalação cria os tópicos do S3 antes de ligar o S3 (testado num Kafka vazio)"],
-        ["B1/B2 (21/10)", "session_id opcional em alerta de comando; S3 consome ods.s4.clip", "Falta escrever na especificação"],
-    ], [3, 7.5, 7]),
+    p("<b>B. Sem a rede da Jetson</b>: o roteiro do Kafka local (docs/ROTEIRO_DEMONSTRACAO_S3.md), com as capturas "
+      "da demonstração de 31/10:"),
+    tabela(["Passo", "O que aparece"], [
+        ["Evento do S2 (capacete, doca-3)", "alerta criado, gravado no banco e entregue à aplicação"],
+        ["Evento UNCERTAIN; UPDATED e ENDED do mesmo evento", "sem alerta; não duplica; não encerra sozinho"],
+        ["Clipe do S4", "alerta republicado com o clip_id"],
+        ["ACK da maria; MUTE da ana; MUTE e CLOSE da maria; ACK depois do CLOSE",
+         "OK; UNAUTHORIZED_ACTOR; OK; OK; INVALID_TRANSITION"],
+        ["Banco e consulta ao histórico", "CREATED → ACKNOWLEDGED → MUTED → CLOSED, com autor e motivo"],
+        ["S3 desligado recebe um evento e volta", "o alerta é criado na volta: nada se perde"],
+    ], [8, 9.5]),
 
-    p("3. O que depende de resposta de outras equipes", h2),
-    tabela(["Equipe", "O que precisamos", "Bloqueia"], [
-        ["<b>Servidor</b> (quem pediu)", "Qual máquina e como entrar nela (SSH); prometido para breve", "Instalação no servidor e a verificação no broker oficial"],
-        ["<b>TRA-1 (B3)</b>", "Respostas aos comandos em .reply; chave alert_id; grupo S3-alertas; como barrar comandos de outros squads sem autenticação; quem fornece o servidor", "S3.2 e S3.6 no broker oficial"],
-        ["<b>TRA-1 (B1)</b>", "Escrever na especificação: session_id opcional, S3 consumidor de ods.s4.clip, republicação ao vincular o clipe, códigos INVALID_PAYLOAD, INVALID_MESSAGE e UNAUTHORIZED_ACTOR; texto da regra 7 (deduplicação); validador oficial", "S3.1 (cenários de B1)"],
-        ["<b>TRA-2 (B2)</b>", "Confirmar que o S3 não consome ods.session.started", "Nada (provisória)"],
-        ["<b>S2 (VER-6)</b>", "Publicar ods.s2.event de verdade; usar event_id como chave de partição; avisar quando estiver pronto", "S3.2 e o fluxo S2 → S3 → A5 real"],
-        ["<b>A3 (VER-6)</b>", "ROUTING, arquivo de permissões, filtros do histórico e se quer a trilha de ações; confirmar som e push", "S3.4, S3.5 e o teste com A3"],
-        ["<b>A7 (VER-4)</b>", "Confirmar que não usa ROUTING; arquivo de permissões; confirmar som e push", "S3.4, S3.5 e o teste com A7"],
-        ["<b>S4 (MOD-2)</b>", "Aplicar as 4 correções: captured_at, sequence, session_id UUID e clip_id sem prefixo", "S3.7 com dados reais"],
-        ["<b>P3 (SIS-1)</b>", "Onde o S3 roda na build final (o broker hoje está na nuvem, só para testes)", "Implantação final"],
-    ], [2.8, 10, 4.7]),
+    p("4. Pronto para a Jetson", h2),
+    tabela(["Ponto", "Como está"], [
+        ["Implantação", "Automática, pela equipe especializada, a partir do GitHub. Instruções: docs/IMPLANTACAO_EQUIPE.md"],
+        ["Imagem", "Dockerfile no repositório; o CI publica a imagem pronta em ghcr.io/ods-26-2/s3 (ARM e PC) a cada push na main"],
+        ["Processador ARM da Jetson", "Imagem arm64 construída e testada por emulação: passou na verificação inteira"],
+        ["Endereço do broker", "Já vem configurado: Kafka da Jetson, 172.18.4.56:9092 (pode ser trocado por variável)"],
+        ["Tópicos", "O S3 cria os que faltarem ao ligar (TRA-1 liberou)"],
+        ["Funcionamento contínuo", "Roda sem parar; volta sozinho depois de uma queda; parada limpa em ~1 s"],
+        ["Recursos", "~18 MB de memória e CPU quase nula parado"],
+        ["Plano B", "No notebook, na rede do DComp: infra/servidor/ligar_windows.ps1 (testado)"],
+    ], [4.5, 13]),
 
-    p("4. O que você pode fazer sozinho", h2),
-    p("<b>Feito desde o relatório anterior (30/10)</b>", h3),
-    lista([
-        ("Demonstração completa no Kafka local (31/10)", "S2 → S3 → banco → A5; decisões com eventos; clipe; ACK, MUTE e CLOSE com permissão negada e transição inválida; histórico; queda e volta do S3"),
-        ("Código na main", "feature/kafka e feature/docker juntadas na main"),
-        ("Imagem Docker do S3", "Testada contra o Kafka local: evento vira alerta, banco sobrevive ao reinício, docker stop sai em ~1 s"),
-        ("Script de instalação do servidor", "Testado num Ubuntu 24.04 limpo: instalou o Docker, ligou o S3, achou os 9 tópicos e processou um evento"),
-        ("Verificação mínima no broker", "Passou contra o Kafka local em 4 s; recusa o broker do projeto sem --broker-oficial"),
-        ("Integração contínua no GitHub", "Testes com cobertura e imagem a cada push; primeira execução no GitHub passou (04/11)"),
-        ("Resposta da TRA-1 registrada", "Nomes dos tópicos aprovados; broker sem autenticação"),
-    ], feito=True),
-    p("<b>Próximos</b>", h3),
-    lista([
-        ("Juntar na main", "A main já tem o script, a verificação e o CI (CI passou nela); falta a criação de tópicos de 05/11"),
-        ("Resto das perguntas à TRA-1", "Folha docs/PERGUNTAS_TRA1_AULA_0511.pdf: 1 e 2 respondidas; faltam .reply, chave alert_id, grupo, barrar comandos, especificação, validador e servidor"),
-        ("Instalar no servidor e rodar a verificação", "Quando o servidor chegar: 3 comandos, uns 3 minutos; tirar a captura da verificação (evidência do S3.2)"),
-        ("S3.5 no A5 (squad VER-3)", "O backend do A5 usar o kit: consumir ods.s3.alert, tocar o som, mostrar na tela, mandar o push e parar em ACK, MUTE e CLOSE"),
-        ("Cobrar as respostas", "S4 (as 4 correções), A3, A7, S2, TRA-2 e P3"),
-    ]),
+    p("5. Qualidade", h2),
+    tabela(["Item", "Resultado"], [
+        ["Testes automatizados", f"{TESTES}: 265 unitários, 128 de persistência (SQLite real, reinício e falhas) e 8 de integração (o S3 inteiro com Kafka simulado)"],
+        ["Cobertura", "98% das 1.302 linhas do S3"],
+        ["Broker nos testes", "nenhum teste acessa broker: o Kafka da nuvem era pago e compartilhado pelos 15 squads"],
+        ["Integração contínua", "a cada push e pull request, o GitHub roda os testes com cobertura e constrói a imagem"],
+        ["Prova de que os testes pegam erro", "desligar de propósito o reenvio da fila de saída ou a chave de partição faz os testes falharem"],
+        ["Rastreabilidade", "uma linha de log por mensagem que entra, sai ou é descartada"],
+    ], [4.5, 13]),
+    Spacer(1, 4),
+    tabela(["Também entregue", "Onde"], [
+        ["Contratos enviados às aplicações, ao barramento e ao S2", "contratos/"],
+        ["Decisões registradas, com origem (aprovada, do VER-3 ou provisória)", "docs/DECISOES_S3.md"],
+        ["Kafka local, teste com quedas e kit para as aplicações testarem contra o S3", "infra/kafka-local/, tools/"],
+        ["Roteiro de demonstração e guias de implantação", "docs/"],
+    ], [11, 6.5]),
 
-    p("5. Escolhas em aberto", h2),
-    tabela(["Escolha", "Recomendação", "Por quê"], [
-        ["Barrar comandos de outros squads (o broker não tem autenticação)", "Opção pronta e testada, desligada: --produtores A3,A5,A7 (ou S3_PRODUTORES_COMANDOS). Ligar quando a TRA-1 concordar", "O campo pode ser falsificado, mas evita comando enviado por engano; o actor continua conferido pelas permissões"],
-        ["Banco: SQLite ou banco de servidor", "SQLite, um arquivo por instância", "Uma instância do S3 por build; no servidor fica num volume do Docker"],
-        ["Republicar o alerta ao vincular o clipe", "Manter e pedir confirmação ao B1", "Sem isso, o clipe só aparece na consulta de histórico"],
-        ["Paginação com mais de limit alertas no mesmo milissegundo", "Aceitar como limitação documentada", "Caso raro; a solução seria um cursor novo no contrato"],
-        ["Nova versão do ROUTING", "Reiniciar o S3 por enquanto", "ods.artifact.published não tem contrato de acesso ao registro"],
-        ["Trilha de ações para o A3", "Perguntar antes de criar qualquer coisa", "Não sai por nenhum contrato hoje; seria um contrato novo"],
-    ], [5, 5.5, 7]),
-
-    p("6. Riscos", h2),
-    tabela(["Risco", "Efeito", "Como reduzir"], [
-        ["O servidor não chegar a tempo", "S3.2 e S3.6 sem prova no broker oficial", "Instalação ensaiada (3 min) e verificação pronta; até lá, a prova é o Kafka local"],
-                ["Comandos de qualquer squad (broker sem autenticação)", "Alguém agir sobre alertas sem ser A3, A5 ou A7", "O actor já é conferido pelas permissões; a conferência do producer está pronta, falta a TRA-1 concordar para ligar"],
-        ["Dois S3 ligados no mesmo broker", "Respostas contraditórias às aplicações", "Um S3 só, no servidor; o kit e o teste local recusam o broker do projeto"],
-        ["Créditos de nuvem acabarem", "Servidor e broker fora do ar", "Máquina pequena, desligada fora dos testes; CI no GitHub, não na nuvem"],
-        ["S2 e aplicações não ficarem prontos", "Sem fluxo S2 → S3 → A5 real", "Kit para o backend do A5 testar sem o S2; demonstração do Kafka local como evidência"],
-    ], [4.5, 5.5, 7.5]),
+    p("6. Próximos passos", h2),
+    tabela(["O quê", "Com quem"], [
+        ["S3 rodando na Jetson", "Equipe de implantação (a imagem está pronta no GitHub)"],
+        ["Fluxo real S2 → S3 → aplicações, com eventos de verdade", "S2 publicar no Kafka da Jetson"],
+        ["Validar as mensagens do S3 no validador oficial; escrever na especificação o combinado em 21/10", "TRA-1 (B1)"],
+        ["Aceitar comandos só de A3, A5 e A7 (a opção já existe, desligada)", "TRA-1: concordar"],
+        ["Clipe real vinculado ao alerta", "S4: ajustar 4 campos do ods.s4.clip"],
+    ], [11, 6.5]),
 ]
 
 
@@ -294,13 +298,13 @@ def rodape(canvas, doc):
     canvas.saveState()
     canvas.setFont("Calibri", 8.5)
     canvas.setFillColor(CINZA)
-    canvas.drawString(1.5 * cm, 1.0 * cm, f"S3 (VER-3) · Situação da Sprint 3 · {DATA}")
+    canvas.drawString(1.5 * cm, 1.0 * cm, f"S3 (VER-3) · Encerramento da Sprint 3 · {DATA}")
     canvas.drawRightString(A4[0] - 1.5 * cm, 1.0 * cm, f"página {doc.page}")
     canvas.restoreState()
 
 
 SimpleDocTemplate(
     SAIDA, pagesize=A4, leftMargin=1.5 * cm, rightMargin=1.5 * cm, topMargin=1.4 * cm, bottomMargin=1.6 * cm,
-    title="S3 — Situação da Sprint 3", author="Squad VER-3",
+    title="S3 — Encerramento da Sprint 3", author="Squad VER-3",
 ).build(historia, onFirstPage=rodape, onLaterPages=rodape)
 print("gerado:", SAIDA)

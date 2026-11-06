@@ -93,6 +93,13 @@ alerta de teste não fica aberto nas aplicações) e consulta o histórico. São
 - **Uma instância só por broker.** Dois S3 no mesmo broker respondem aos mesmos
   comandos, cada um com o seu banco, e as aplicações recebem respostas contraditórias.
 - O banco pressupõe **um processo por arquivo**: não compartilhe o volume entre contêineres.
+- **Rede Docker x rede do DComp.** O Kafka da Jetson está em `172.18.4.56`, e o Docker costuma
+  criar redes de contêiner em `172.17–172.31.x.x`. Se existir na máquina uma rede Docker em
+  `172.18.0.0/16`, o tráfego dos contêineres para o broker é desviado para ela e o S3 não conecta
+  (`Failed to get metadata: Broker transport failure`), mesmo com a máquina alcançando o broker.
+  Aconteceu num notebook em 06/11/2026. Conferir com
+  `docker network inspect $(docker network ls -q) --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'`;
+  o compose do S3 já fixa a sua rede em `10.250.2.0/24`.
 - Mais detalhes (systemd sem Docker, imagem ARM sem internet na máquina, problemas comuns):
   [IMPLANTACAO_SERVIDOR.md](IMPLANTACAO_SERVIDOR.md) e
   [PASSO_A_PASSO_SERVIDOR_S3.pdf](PASSO_A_PASSO_SERVIDOR_S3.pdf).

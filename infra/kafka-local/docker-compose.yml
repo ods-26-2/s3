@@ -13,3 +13,12 @@ services:
     container_name: s3-kafka-local
     ports:
       - "9092:9092"
+
+# Rede fixa fora de 172.16–31.x: o Docker escolheria 172.18.0.0/16, a faixa da
+# rede do DComp, e passaria a desviar para cá o tráfego para o Kafka da Jetson
+# (172.18.4.56), inclusive o de outros contêineres (aconteceu em 06/11/2026).
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.250.1.0/24

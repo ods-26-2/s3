@@ -34,3 +34,12 @@ services:
 
 volumes:
   s3-dados:
+
+# Rede fixa fora de 172.16–31.x: a rede do DComp e o Kafka da Jetson estão em
+# 172.18.x.x, e uma rede Docker nessa faixa desviaria o tráfego para o broker
+# (aconteceu em 06/11/2026). Vale no próximo `up`.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.250.2.0/24

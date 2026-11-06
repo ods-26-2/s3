@@ -19,7 +19,8 @@ O caminho S2 → S3 é verificado quando o S2 publicar de verdade.
 O broker vem de --broker ou de S3_KAFKA_BOOTSTRAP. Fora de localhost, só
 roda com --broker-oficial: o broker do projeto (Jetson, ou a nuvem de testes)
 é compartilhado por todos os squads.
-Os consumidores começam do fim dos tópicos (não leem o histórico) e tudo
+Os consumidores leem os tópicos do começo e só consideram as mensagens deste
+teste (pelo alert_id e pelo correlation_id); tudo
 termina em --prazo segundos.
 """
 
@@ -73,8 +74,11 @@ class Verificador:
         self.leitor = Consumer({
             "bootstrap.servers": endereco,
             "group.id": f"S3-verificacao-{uuid4()}",
-            # Do fim: não lê o que já está nos tópicos.
-            "auto.offset.reset": "latest",
+            # Do começo: com "latest", num broker remoto (Jetson, 06/11/2026) o
+            # fim do tópico era marcado depois que o S3 já tinha publicado o
+            # alerta, e a verificação o perdia. As mensagens são filtradas pelo
+            # alert_id e pelo correlation_id deste teste; as antigas não contam.
+            "auto.offset.reset": "earliest",
             "enable.auto.commit": False,
             **SILENCIO,
         })

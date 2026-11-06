@@ -199,9 +199,9 @@ def consumidor(endereco: str, topicos: list[str], inicio: str = "earliest") -> C
     return leitor
 
 
-def aplicacao(endereco: str, desde_inicio: bool) -> int:
+def aplicacao(endereco: str, desde_inicio: bool, nome: str = "A5") -> int:
     """
-    Faz o papel do backend do A5: recebe ods.s3.alert e aplica as regras
+    Faz o papel do backend de uma aplicação (A3, A5 ou A7): recebe ods.s3.alert e aplica as regras
     de consumo (DECISOES_S3.md, 17 e 18): descarta message_id repetido,
     ignora sequence menor do mesmo alert_id e atualiza pelo alert_id.
     """
@@ -213,7 +213,7 @@ def aplicacao(endereco: str, desde_inicio: bool) -> int:
     alertas: dict[str, dict] = {}   # alert_id → último payload aplicado
     ultima_seq: dict[str, int] = {}
 
-    print("A5 ouvindo ods.s3.alert. Ctrl+C para parar.", flush=True)
+    print(f"{nome} ouvindo ods.s3.alert. Ctrl+C para parar.", flush=True)
     try:
         while True:
             mensagem = leitor.poll(1.0)
@@ -226,13 +226,13 @@ def aplicacao(endereco: str, desde_inicio: bool) -> int:
             curto = alerta_id[:8]
 
             if dados["message_id"] in vistas:
-                print(f"\n[A5] {curto} mensagem repetida (mesmo message_id): descartada", flush=True)
+                print(f"\n[{nome}] {curto} mensagem repetida (mesmo message_id): descartada", flush=True)
                 continue
             vistas.add(dados["message_id"])
 
             if dados["sequence"] < ultima_seq.get(alerta_id, -1):
                 print(
-                    f"\n[A5] {curto} {payload['state']} com sequence {dados['sequence']} "
+                    f"\n[{nome}] {curto} {payload['state']} com sequence {dados['sequence']} "
                     f"menor que {ultima_seq[alerta_id]}: ignorada (chegou fora de ordem)",
                     flush=True,
                 )
@@ -244,7 +244,7 @@ def aplicacao(endereco: str, desde_inicio: bool) -> int:
             ultima_seq[alerta_id] = dados["sequence"]
 
             print(
-                f"\n[A5] {'NOVO ALERTA' if novo else 'ATUALIZAÇÃO'} {alerta_id}\n"
+                f"\n[{nome}] {'NOVO ALERTA' if novo else 'ATUALIZAÇÃO'} {alerta_id}\n"
                 f"     state={payload['state']}  severity={payload['severity']}  "
                 f"sequence={dados['sequence']}\n"
                 f"     {payload['title']}: {payload['message']}\n"
@@ -256,10 +256,10 @@ def aplicacao(endereco: str, desde_inicio: bool) -> int:
                     print(f"     {campo}: {payload[campo]}", flush=True)
 
             if payload["state"] == "CREATED" and novo:
-                print(f"     → o backend do A5 avisa por {', '.join(payload['channels'])}", flush=True)
+                print(f"     → o backend do {nome} avisa por {', '.join(payload['channels'])}", flush=True)
             elif payload["state"] in ("ACKNOWLEDGED", "MUTED", "CLOSED") \
                     and anterior.get("state") != payload["state"]:
-                print("     → o backend do A5 para o som e o push", flush=True)
+                print(f"     → o backend do {nome} para o som e o push", flush=True)
     except KeyboardInterrupt:
         return 0
     finally:
@@ -278,22 +278,44 @@ def esperar_resposta(leitor: Consumer, pedido: dict, prazo_s: float = 30) -> dic
     sys.exit(f"O S3 não respondeu em {prazo_s:.0f} s. Ele está rodando (kit_aplicacoes.py s3)?")
 
 
-def pedir(endereco: str, schema: str, payload: dict) -> dict:
-    """Manda um comando ou consulta como o A5 e devolve a resposta do S3."""
+def pedir(endereco: str, schema: str, payload: dict, produtor: str = "A5") -> dict:
+    """Manda um comando ou consulta como a aplicação `produtor` e devolve a resposta do S3."""
 
     leitor = consumidor(endereco, [schema.rsplit(".", 1)[0] + ".reply"])
     try:
-        pedido = comando(schema, payload, published_at=agora_iso())
+        pedido = comando(schema, payload, published_at=agora_iso(), producer=produtor)
         publicar(endereco, pedido)
-        print(f"A5 enviou {schema} (message_id {pedido['message_id']})", flush=True)
+        print(f"{produtor} enviou {schema} (message_id {pedido['message_id']})", flush=True)
         return esperar_resposta(leitor, pedido)["payload"]
     finally:
         leitor.close()
 
 
+def mais_recente(campo: str, caminho: str) -> str:
+    """
+    O alert_id (ou o event_id) do alerta mais recente no banco do S3 do kit,
+    para usar "ultimo" no lugar de copiar o identificador.
+    """
+
+    if not Path(caminho).exists():
+        sys.exit(f"Banco não encontrado: {caminho}. O S3 do kit (kit_aplicacoes.py s3) já rodou?")
+    conexao = sqlite3.connect(f"file:{Path(caminho).as_posix()}?mode=ro", uri=True)
+    try:
+        alertas = [json.loads(d) for (d,) in conexao.execute("SELECT dados FROM alertas")]
+    finally:
+        conexao.close()
+    alertas = [a for a in alertas if a.get(campo)]
+    if not alertas:
+        sys.exit(f"Nenhum alerta com {campo} no banco ainda. Mande um evento antes.")
+    escolhido = max(alertas, key=lambda a: a["criado_em"])[campo]
+    print(f"ultimo = {escolhido}", flush=True)
+    return escolhido
+
+
 def acao(endereco: str, argumentos: argparse.Namespace) -> int:
     payload = {
-        "alert_id": argumentos.alert_id,
+        "alert_id": (mais_recente("alerta_id", argumentos.banco)
+                     if argumentos.alert_id == "ultimo" else argumentos.alert_id),
         "action": argumentos.action,
         "actor": argumentos.actor,
     }
@@ -302,12 +324,31 @@ def acao(endereco: str, argumentos: argparse.Namespace) -> int:
     if argumentos.action == "MUTE":
         payload["mute_until"] = argumentos.ate or agora_iso(minutos=30)
 
-    resposta = pedir(endereco, "ods.s3.alert_action.command", payload)
+    resposta = pedir(endereco, "ods.s3.alert_action.command", payload, argumentos.produtor)
     if resposta["status"] == "OK":
         print(f"S3 respondeu OK: o alerta agora está {resposta['state']}")
         return 0
     erro = resposta["error"]
     print(f"S3 respondeu ERRO {erro['code']}: {erro['message']}")
+    return 1
+
+
+def criar(endereco: str, argumentos: argparse.Namespace) -> int:
+    """A aplicação cria um alerta de negócio direto, sem evento do S2 (ods.s3.alert.command)."""
+
+    payload = {
+        "title": argumentos.titulo,
+        "message": argumentos.mensagem,
+        "severity": argumentos.severidade,
+        "recipients": [d.strip() for d in argumentos.para.split(",")],
+        "channels": [c.strip() for c in argumentos.canais.split(",")],
+    }
+
+    resposta = pedir(endereco, "ods.s3.alert.command", payload, argumentos.produtor)
+    if resposta["status"] == "OK":
+        print(f"S3 respondeu OK: alerta criado, alert_id {resposta['alert_id']}")
+        return 0
+    print(f"S3 respondeu ERRO {resposta['error']['code']}: {resposta['error']['message']}")
     return 1
 
 
@@ -318,7 +359,7 @@ def consulta(endereco: str, argumentos: argparse.Namespace) -> int:
     if argumentos.severidade:
         payload["severity"] = argumentos.severidade
 
-    resposta = pedir(endereco, "ods.s3.alerts.query", payload)
+    resposta = pedir(endereco, "ods.s3.alerts.query", payload, argumentos.produtor)
     if resposta["status"] != "OK":
         print(f"S3 respondeu ERRO {resposta['error']['code']}: {resposta['error']['message']}")
         return 1
@@ -412,19 +453,32 @@ def main() -> int:
     evento.add_argument("--duracao", type=int, help="segundos sem o EPI (padrão: 8)")
 
     clipe = sub.add_parser("clipe", help="o S4 publica o ods.s4.clip de um evento")
-    clipe.add_argument("event_id")
+    clipe.add_argument("event_id", help="o event_id, ou ultimo (o do alerta mais recente)")
+    clipe.add_argument("--banco", default=str(RAIZ / "s3-local.sqlite3"))
 
-    app = sub.add_parser("aplicacao", help="faz o papel do A5: recebe os alertas do S3")
+    app = sub.add_parser("aplicacao", help="faz o papel de uma aplicação: recebe os alertas do S3")
     app.add_argument("--desde-inicio", action="store_true", help="mostra também os alertas antigos")
+    app.add_argument("--nome", default="A5", help="qual aplicação (A3, A5, A7); padrão: A5")
 
-    act = sub.add_parser("acao", help="o A5 manda ACKNOWLEDGE, MUTE ou CLOSE")
-    act.add_argument("alert_id")
+    act = sub.add_parser("acao", help="uma aplicação manda ACKNOWLEDGE, MUTE ou CLOSE")
+    act.add_argument("--produtor", default="A5", help="qual aplicação manda (A3, A5, A7); padrão: A5")
+    act.add_argument("alert_id", help="o alert_id, ou ultimo (o alerta mais recente)")
+    act.add_argument("--banco", default=str(RAIZ / "s3-local.sqlite3"))
     act.add_argument("action", choices=["ACKNOWLEDGE", "MUTE", "CLOSE"])
     act.add_argument("--actor", default="user:maria", help="padrão: user:maria (supervisora)")
     act.add_argument("--motivo", help="reason")
     act.add_argument("--ate", help="mute_until em ISO 8601 UTC (padrão: daqui a 30 min)")
 
-    cons = sub.add_parser("consulta", help="o A5 pede o histórico de alertas")
+    cri = sub.add_parser("criar", help="uma aplicação cria um alerta direto (ods.s3.alert.command)")
+    cri.add_argument("--produtor", default="A7", help="qual aplicação cria (A1, A2, A3, A5, A7); padrão: A7")
+    cri.add_argument("--titulo", default="Inspeção de EPI pendente")
+    cri.add_argument("--mensagem", default="Turno da tarde sem inspeção registrada")
+    cri.add_argument("--severidade", default="MEDIUM", choices=["LOW", "MEDIUM", "HIGH"])
+    cri.add_argument("--para", default="role:supervisor", help="destinatários, separados por vírgula")
+    cri.add_argument("--canais", default="SCREEN", help="SOUND, SCREEN, PUSH, separados por vírgula")
+
+    cons = sub.add_parser("consulta", help="uma aplicação pede o histórico de alertas")
+    cons.add_argument("--produtor", default="A5", help="qual aplicação pede (A3, A5, A7); padrão: A5")
     cons.add_argument("--estado", choices=["CREATED", "ACKNOWLEDGED", "MUTED", "CLOSED"])
     cons.add_argument("--severidade", choices=["LOW", "MEDIUM", "HIGH"])
     cons.add_argument("--limite", type=int, default=100)
@@ -481,13 +535,17 @@ def main() -> int:
               f"em {p['zone_id']} há {p['duration_ms'] // 1000} s")
         print(f"event_id {p['event_id']}")
     elif argumentos.acao == "clipe":
-        mensagem = novo_clipe(argumentos.event_id)
+        evento_id = (mais_recente("evento_id", argumentos.banco)
+                     if argumentos.event_id == "ultimo" else argumentos.event_id)
+        mensagem = novo_clipe(evento_id)
         publicar(endereco, mensagem)
         print(f"ods.s4.clip publicado: clip_id {mensagem['payload']['clip_id']}")
     elif argumentos.acao == "aplicacao":
-        return aplicacao(endereco, argumentos.desde_inicio)
+        return aplicacao(endereco, argumentos.desde_inicio, argumentos.nome)
     elif argumentos.acao == "acao":
         return acao(endereco, argumentos)
+    elif argumentos.acao == "criar":
+        return criar(endereco, argumentos)
     elif argumentos.acao == "consulta":
         return consulta(endereco, argumentos)
     elif argumentos.acao == "cenario":

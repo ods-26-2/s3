@@ -1,0 +1,37 @@
+# S3 rodando NA Jetson (para a equipe de implantação).
+#
+#   docker compose -f infra/jetson/docker-compose.yml up -d --build
+#   docker compose -f infra/jetson/docker-compose.yml logs -f s3
+#   docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
+#
+# O Kafka da Jetson tem duas portas (TRA-1, 06/11/2026):
+#   9092: para quem está na própria Jetson; anuncia localhost:9092;
+#   9093: para quem está fora (outras máquinas da rede do DComp).
+# Na 9092, o cliente é mandado para localhost:9092. Num contêiner com rede
+# própria, localhost é o próprio contêiner e o S3 não conecta. Por isso este
+# compose usa a rede do host (network_mode: host): localhost passa a ser a Jetson.
+# Fora da Jetson, use infra/servidor/docker-compose.yml com a porta 9093.
+services:
+  s3:
+    build:
+      context: ../..
+    image: ods-s3
+    container_name: ods-s3
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      S3_KAFKA_BOOTSTRAP: ${S3_KAFKA_BOOTSTRAP:-localhost:9092}
+      S3_KAFKA_GROUP_ID: ${S3_KAFKA_GROUP_ID:-S3-alertas}
+      # Quem pode mandar comandos ao S3 (o broker não tem autenticação).
+      # Vazio = qualquer produtor. Ex.: S3_PRODUTORES_COMANDOS=A3,A5,A7
+      S3_PRODUTORES_COMANDOS: ${S3_PRODUTORES_COMANDOS:-}
+    volumes:
+      - s3-dados:/dados
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  s3-dados:

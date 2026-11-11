@@ -86,6 +86,8 @@ bash infra/servidor/instalar.sh 172.18.4.56:9092
 docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
 ```
 
+Do notebook, pelo Kafka da Jetson (enquanto não houver porta de clientes externa): `powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_ponte_jetson.ps1` (ver [docs/IMPLANTACAO_SERVIDOR.md](docs/IMPLANTACAO_SERVIDOR.md)).
+
 Plano B, num notebook com Windows na rede do DComp: `powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_windows.ps1 172.18.4.56:9092`.
 
 Passo a passo, problemas comuns e economia de créditos: [docs/PASSO_A_PASSO_SERVIDOR_S3.pdf](docs/PASSO_A_PASSO_SERVIDOR_S3.pdf) e [docs/IMPLANTACAO_SERVIDOR.md](docs/IMPLANTACAO_SERVIDOR.md).

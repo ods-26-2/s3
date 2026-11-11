@@ -24,7 +24,7 @@ COPY src/ src/
 #   docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
 # Criação dos tópicos do S3 antes de ligar (instalar.sh, ligar_windows.ps1):
 #   docker run --rm --entrypoint python ods-s3 tools/criar_topicos.py <broker>
-COPY tools/verificar_broker.py tools/criar_topicos.py tools/
+COPY tools/verificar_broker.py tools/criar_topicos.py tools/outro_s3.py tools/
 
 # Configuração de exemplo do A5 (a mesma de contratos/). Para usar outra,
 # monte arquivos por cima de /config/routing.json e /config/permissoes.json.

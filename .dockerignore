@@ -10,6 +10,7 @@ tests
 tools/*
 !tools/verificar_broker.py
 !tools/criar_topicos.py
+!tools/outro_s3.py
 docs
 infra
 dados

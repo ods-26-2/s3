@@ -50,6 +50,25 @@ O arquivo sai com uns 47 MB e o nome certo (`ods-s3:latest`, `linux/arm64`), sem
 na imagem do PC. Testado em 05/11/2026: a imagem arm64, rodada por emulação, passou na
 verificação inteira.
 
+## Do notebook, pelo Kafka da Jetson (ponte)
+
+A porta 9092 da Jetson anuncia `localhost:9092`, e a 9093 é a porta do controlador: hoje não há
+porta de clientes para quem está fora da Jetson. Uma ponte (`socat`) contorna isso: ela escuta em
+`localhost:9092` e repassa para a Jetson, e o S3 usa a rede dela. Funciona porque o Kafka da Jetson
+tem um broker só. Um comando, na rede do DComp, com o Docker Desktop aberto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_ponte_jetson.ps1
+powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_ponte_jetson.ps1 -Parar   # desliga
+```
+
+O script confere a Jetson, liga a ponte, **recusa se já houver um S3 ligado no broker** (o grupo
+`S3-alertas` ativo, por exemplo o que a equipe de implantação subiu), cria os tópicos que faltam,
+liga o S3 e roda a verificação. Testado em 10/11/2026 contra um Kafka local que anuncia
+`localhost:9092` como o da Jetson: "Tudo certo" pela ponte, e recusa com outro S3 ligado.
+Em 06/11, pela ponte manual, o S3 recebeu um comando pelo Kafka da Jetson, criou o alerta,
+publicou e respondeu, antes de o Kafka da Jetson sair do ar.
+
 ## Plano B — no notebook com Windows (na rede do DComp)
 
 Se não der para instalar na Jetson, o S3 roda no notebook, com o Docker Desktop aberto,

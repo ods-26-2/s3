@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/ods-26-2/s3/actions/workflows/ci.yml/badge.svg)](https://github.com/ods-26-2/s3/actions/workflows/ci.yml)
 
-> **Equipe de implantação:** instruções em [docs/IMPLANTACAO_EQUIPE.md](docs/IMPLANTACAO_EQUIPE.md). Em resumo: imagem `ghcr.io/ods-26-2/s3:latest` (arm64 e amd64) ou `docker build` do `Dockerfile`; já vem com o broker da Jetson (`172.18.4.56:9092`) e cria os tópicos ao ligar; volume em `/dados`; **na Jetson, `--network host`** (a porta 9092 anuncia `localhost`; fora da Jetson, porta 9093); reinício `unless-stopped`; uma instância só.
+> **Equipe de implantação:** instruções em [docs/IMPLANTACAO_EQUIPE.md](docs/IMPLANTACAO_EQUIPE.md). Em resumo: imagem `ghcr.io/ods-26-2/s3:latest` (arm64 e amd64) ou `docker build` do `Dockerfile`; já vem com o broker da Jetson (`172.18.4.56:9092`) e cria os tópicos ao ligar; volume em `/dados`; **na Jetson, na rede Docker do Kafka com `S3_KAFKA_BOOTSTRAP=kafka:9092`** (o Kafka anuncia `kafka:9092` desde 11/11; compose em `infra/jetson/docker-compose.yml`); reinício `unless-stopped`; uma instância só.
 
-**Estado em 05/11/2026.** Referência: *Especificação de interfaces 1.0, arquitetura 6c*. Este documento distingue implementação local, teste automatizado e validação externa. **O S3 está implementado, rodou contra um Kafka local (Docker) e está pronto para ser implantado na Jetson (imagem ARM testada). A implantação fica com a equipe especializada indicada pelo professor. Ainda não rodou no broker da Jetson nem foi validado ponta a ponta com o S2 e o A5 reais.**
+**Estado em 11/11/2026.** Referência: *Especificação de interfaces 1.0, arquitetura 6c*. Este documento distingue implementação local, teste automatizado e validação externa. **O S3 está implementado, rodou contra um Kafka local (Docker) e está pronto para ser implantado na Jetson (imagem ARM testada). A implantação fica com a equipe especializada indicada pelo professor. Em 11/11/2026 rodou pelo notebook contra o Kafka da Jetson (ponte), com a verificação mínima passando ("Tudo certo"); ainda não foi validado ponta a ponta com o S2 e as aplicações reais.**
 
 Situação detalhada: [docs/SITUACAO_SPRINT3_S3.pdf](docs/SITUACAO_SPRINT3_S3.pdf) · Servidor: [docs/PASSO_A_PASSO_SERVIDOR_S3.pdf](docs/PASSO_A_PASSO_SERVIDOR_S3.pdf)
 

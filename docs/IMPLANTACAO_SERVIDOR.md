@@ -52,10 +52,10 @@ verificação inteira.
 
 ## Do notebook, pelo Kafka da Jetson (ponte)
 
-A porta 9092 da Jetson anuncia `localhost:9092`, e a 9093 é a porta do controlador: hoje não há
-porta de clientes para quem está fora da Jetson. Uma ponte (`socat`) contorna isso: ela escuta em
-`localhost:9092` e repassa para a Jetson, e o S3 usa a rede dela. Funciona porque o Kafka da Jetson
-tem um broker só. Um comando, na rede do DComp, com o Docker Desktop aberto:
+O Kafka da Jetson anuncia um nome que só vale dentro da Jetson (`localhost:9092` até 06/11,
+`kafka:9092` desde 11/11). Uma ponte (`socat`) contorna isso: ela escuta na porta anunciada e repassa
+para a Jetson, e o S3 usa a rede dela (o script descobre o nome anunciado sozinho). Funciona porque o
+Kafka da Jetson tem um broker só. Um comando, na rede do DComp, com o Docker Desktop aberto:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File infra\servidor\ligar_ponte_jetson.ps1
@@ -66,7 +66,8 @@ O script confere a Jetson, liga a ponte, **recusa se já houver um S3 ligado no 
 `S3-alertas` ativo, por exemplo o que a equipe de implantação subiu), cria os tópicos que faltam,
 liga o S3 e roda a verificação. Testado em 10/11/2026 contra um Kafka local que anuncia
 `localhost:9092` como o da Jetson: "Tudo certo" pela ponte, e recusa com outro S3 ligado.
-Em 06/11, pela ponte manual, o S3 recebeu um comando pelo Kafka da Jetson, criou o alerta,
+Em 11/11/2026, contra o Kafka da Jetson (anunciando `kafka:9092`): recriou os 9 tópicos e a
+verificação deu "Tudo certo". Em 06/11, pela ponte manual, o S3 recebeu um comando pelo Kafka da Jetson, criou o alerta,
 publicou e respondeu, antes de o Kafka da Jetson sair do ar.
 
 ## Plano B — no notebook com Windows (na rede do DComp)

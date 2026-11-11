@@ -12,8 +12,8 @@ não tem interface e não usa GPU.
 |---|---|
 | Imagem pronta | `ghcr.io/ods-26-2/s3:latest` (`linux/arm64` e `linux/amd64`), publicada pelo CI a cada push na `main` |
 | Ou construir | `Dockerfile` na raiz do repositório `https://github.com/ods-26-2/s3`, branch `main` |
-| Broker | **já vem configurado:** Kafka da Jetson, `172.18.4.56:9092` (a porta de quem está na Jetson) |
-| Rede | **na Jetson, `--network host` (obrigatório):** a porta 9092 anuncia `localhost:9092`, e só a rede do host alcança esse endereço; ver "Rede na Jetson" |
+| Broker | na Jetson, `kafka:9092`: o nome que o Kafka anuncia desde 11/11/2026 |
+| Rede | **na Jetson, a rede Docker do Kafka (obrigatório):** só nela o nome `kafka` funciona; ver "Rede na Jetson" |
 | Tópicos | o S3 cria os que faltarem ao ligar |
 | Volume | `/dados` (SQLite: alertas, histórico, fila de saída) |
 | Portas | nenhuma; só saída para o broker |
@@ -21,41 +21,42 @@ não tem interface e não usa GPU.
 | Instâncias | **uma só** por broker |
 | Recursos | ~18 MB de memória e CPU quase nula parado; imagem de ~200 MB |
 
-## Rodar
+## Rodar na Jetson
+
+Troque `kafka_default` pelo nome da rede Docker do Kafka (`docker network ls`).
 
 ```bash
-docker run -d --name ods-s3 --restart unless-stopped --network host -v ods-s3-dados:/dados ghcr.io/ods-26-2/s3:latest
+docker run -d --name ods-s3 --restart unless-stopped --network kafka_default   -e S3_KAFKA_BOOTSTRAP=kafka:9092 -v ods-s3-dados:/dados ghcr.io/ods-26-2/s3:latest
 ```
 
-Construindo a partir do repositório (precisa de internet: imagem base e PyPI):
+Ou com o compose da Jetson, a partir do repositório (`https://github.com/ods-26-2/s3`, branch `main`):
 
 ```bash
 git clone https://github.com/ods-26-2/s3.git && cd s3
-docker build -t ods-s3 .
-docker run -d --name ods-s3 --restart unless-stopped --network host -v ods-s3-dados:/dados ods-s3
+echo "KAFKA_REDE=kafka_default" > infra/jetson/.env      # só se a rede tiver outro nome
+docker compose -f infra/jetson/docker-compose.yml up -d --build
 ```
 
-Ou com o compose da Jetson (já com a rede do host): `docker compose -f infra/jetson/docker-compose.yml up -d --build`.
+**Antes de subir:** se o S3 estiver rodando pelo notebook de um integrante do VER-3 (ponte), ele
+precisa ser desligado antes (`ligar_ponte_jetson.ps1 -Parar`). Dois S3 no mesmo Kafka respondem aos
+mesmos comandos.
 
 ## Rede na Jetson
 
-O Kafka da Jetson tem duas portas (TRA-1, 06/11/2026):
+Desde 11/11/2026, o Kafka da Jetson anuncia `kafka:9092`: o nome do contêiner do Kafka na rede Docker
+dele. Todo cliente, depois da primeira conexão, é mandado para `kafka:9092`. Só quem está na **mesma
+rede Docker** resolve esse nome; um contêiner fora dela lê a lista de tópicos, mas criar tópico,
+publicar e ler falham (`Failed while waiting for controller`). Por isso o S3 entra na rede do Kafka.
 
-| Porta | Para quem | Como o S3 usa |
-|---|---|---|
-| `9092` | quem está **na própria Jetson** | `--network host` e `S3_KAFKA_BOOTSTRAP=172.18.4.56:9092` (o padrão da imagem) ou `localhost:9092` |
-| `9093` | quem está **fora** (outras máquinas da rede do DComp) | rede normal do Docker e `S3_KAFKA_BOOTSTRAP=172.18.4.56:9093` |
-
-Na 9092, o Kafka manda o cliente usar `localhost:9092`. Num contêiner com rede própria, `localhost` é
-o próprio contêiner: o S3 lê a lista de tópicos, mas criar tópico, publicar e ler falham
-(`Failed while waiting for controller`, `Connection refused` em `127.0.0.1:9092`). Com `--network host`,
-`localhost` é a Jetson e tudo funciona. Conferido de um notebook da rede do DComp em 06/11/2026.
+Histórico: até 06/11 o Kafka anunciava `localhost:9092`, e o S3 rodaria com `--network host`; a porta
+9093 é a do controlador do Kafka, não de clientes. Fora da Jetson, o VER-3 usa uma ponte
+(`infra/servidor/ligar_ponte_jetson.ps1`), testada em 11/11/2026 com "Tudo certo".
 
 ## Variáveis de ambiente (todas opcionais)
 
 | Variável | Padrão | O que é |
 |---|---|---|
-| `S3_KAFKA_BOOTSTRAP` | `172.18.4.56:9092` | `host:porta` do broker; fora da Jetson, `172.18.4.56:9093` |
+| `S3_KAFKA_BOOTSTRAP` | `172.18.4.56:9092` na imagem; `kafka:9092` no compose da Jetson | `host:porta` do broker; na Jetson, `kafka:9092` |
 | `S3_KAFKA_GROUP_ID` | `S3-alertas` | grupo de consumidores |
 | `S3_PRODUTORES_COMANDOS` | vazio | se definido (ex.: `A3,A5,A7`), o S3 só atende comandos desses produtores; os outros recebem `INVALID_MESSAGE`. Deixar vazio até a TRA-1 decidir |
 

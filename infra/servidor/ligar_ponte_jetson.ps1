@@ -20,6 +20,8 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+# Os contêineres escrevem em UTF-8; sem isto, o console mostra "t├│picos".
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Passo($texto) { Write-Host ""; Write-Host "== $texto" }
 function Parar($texto) { Write-Host ""; Write-Host "ERRO: $texto" -ForegroundColor Red; exit 1 }
@@ -73,14 +75,26 @@ docker build -q -t ods-s3 . | Out-Null
 if ($LASTEXITCODE -ne 0) { Parar "a imagem não foi construída (veja a mensagem acima)." }
 Write-Host "imagem ods-s3 pronta"
 
+Passo "Endereço que o Kafka da Jetson anuncia"
+# A primeira conversa vai direto à Jetson e funciona; o Kafka responde com o
+# endereço que os clientes devem usar dali em diante (localhost:9092 até 06/11,
+# kafka:9092 em 11/11). A ponte escuta nessa porta, e esse nome passa a
+# apontar para ela, dentro dos contêineres que usam a rede da ponte.
+$anuncio = docker run --rm --entrypoint python ods-s3 -c "from confluent_kafka.admin import AdminClient; b = list(AdminClient({'bootstrap.servers': '$Jetson', 'log_level': 2}).list_topics(timeout=15).brokers.values())[0]; print(f'{b.host}:{b.port}')"
+if ($LASTEXITCODE -ne 0 -or $anuncio -notmatch '^([^:\s]+):(\d+)$') { Parar "o Kafka da Jetson não respondeu ao pedido de metadados." }
+$NomeAnunciado, $PortaAnunciada = $Matches[1], $Matches[2]
+Write-Host "o Kafka anuncia: $anuncio"
+
 Passo "Ponte para a Jetson"
-docker run -d --name ponte-jetson alpine/socat "TCP-LISTEN:9092,fork,reuseaddr" "TCP:${Host_}:${Porta}" | Out-Null
+$Mapa = @()
+if ($NomeAnunciado -notin @("localhost", "127.0.0.1")) { $Mapa = @("--add-host", "${NomeAnunciado}:127.0.0.1") }
+docker run -d --name ponte-jetson @Mapa alpine/socat "TCP-LISTEN:${PortaAnunciada},fork,reuseaddr" "TCP:${Host_}:${Porta}" | Out-Null
 if ($LASTEXITCODE -ne 0) { Parar "a ponte não ligou (precisa baixar a imagem alpine/socat na primeira vez)." }
 Start-Sleep -Seconds 2
-Write-Host "ponte ligada: localhost:9092 -> $Jetson"
+Write-Host "ponte ligada: ${NomeAnunciado}:${PortaAnunciada} -> $Jetson"
 
 Passo "Já há um S3 ligado no broker?"
-docker run --rm --network container:ponte-jetson --entrypoint python ods-s3 tools/outro_s3.py localhost:9092
+docker run --rm --network container:ponte-jetson --entrypoint python ods-s3 tools/outro_s3.py localhost:${PortaAnunciada}
 $codigo = $LASTEXITCODE
 if ($codigo -eq 1) {
     Desligar
@@ -89,16 +103,16 @@ if ($codigo -eq 1) {
 if ($codigo -ne 0) { Desligar; Parar "não foi possível consultar o Kafka da Jetson pela ponte." }
 
 Passo "Tópicos do S3 (cria os que faltam)"
-docker run --rm --network container:ponte-jetson --entrypoint python ods-s3 tools/criar_topicos.py localhost:9092 | Select-Object -Last 1
+docker run --rm --network container:ponte-jetson --entrypoint python ods-s3 tools/criar_topicos.py localhost:${PortaAnunciada} | Select-Object -Last 1
 
 Passo "Ligando o S3"
-docker run -d --name ods-s3 --restart unless-stopped --network container:ponte-jetson -e S3_KAFKA_BOOTSTRAP=localhost:9092 -v ods-s3-dados:/dados ods-s3 | Out-Null
+docker run -d --name ods-s3 --restart unless-stopped --network container:ponte-jetson -e S3_KAFKA_BOOTSTRAP=localhost:${PortaAnunciada} -v ods-s3-dados:/dados ods-s3 | Out-Null
 if ($LASTEXITCODE -ne 0) { Desligar; Parar "o S3 não ligou (veja a mensagem acima)." }
 Write-Host "S3 ligado; esperando ele se conectar..."
 Start-Sleep -Seconds 12
 
 Passo "Verificação pelo Kafka da Jetson"
-docker run --rm --network container:ponte-jetson --entrypoint python -e S3_KAFKA_BOOTSTRAP=localhost:9092 ods-s3 tools/verificar_broker.py --broker-oficial --prazo 90
+docker run --rm --network container:ponte-jetson --entrypoint python -e S3_KAFKA_BOOTSTRAP=localhost:${PortaAnunciada} ods-s3 tools/verificar_broker.py --broker-oficial --prazo 90
 
 Write-Host ""
 Write-Host "O S3 fica ligado (pela ponte) enquanto o notebook estiver na rede do DComp e o Docker aberto."

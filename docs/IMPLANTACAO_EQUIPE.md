@@ -26,7 +26,7 @@ não tem interface e não usa GPU.
 Troque `kafka_default` pelo nome da rede Docker do Kafka (`docker network ls`).
 
 ```bash
-docker run -d --name ods-s3 --restart unless-stopped --network kafka_default   -e S3_KAFKA_BOOTSTRAP=kafka:9092 -v ods-s3-dados:/dados ghcr.io/ods-26-2/s3:latest
+docker run -d --name ods-s3 --restart unless-stopped --network kafka_default -e S3_KAFKA_BOOTSTRAP=kafka:9092 -v ods-s3-dados:/dados ghcr.io/ods-26-2/s3:latest
 ```
 
 Ou com o compose da Jetson, a partir do repositório (`https://github.com/ods-26-2/s3`, branch `main`):
@@ -40,6 +40,25 @@ docker compose -f infra/jetson/docker-compose.yml up -d --build
 **Antes de subir:** se o S3 estiver rodando pelo notebook de um integrante do VER-3 (ponte), ele
 precisa ser desligado antes (`ligar_ponte_jetson.ps1 -Parar`). Dois S3 no mesmo Kafka respondem aos
 mesmos comandos.
+
+## Atualizar (depois de uma correção do VER-3)
+
+A cada push na `main`, o CI publica a imagem nova em `ghcr.io/ods-26-2/s3:latest`. Para trocar:
+
+```bash
+docker pull ghcr.io/ods-26-2/s3:latest
+docker stop ods-s3 && docker rm ods-s3
+# e o mesmo docker run de "Rodar na Jetson"
+```
+
+Com o compose: `git pull` na pasta do repositório e `docker compose -f infra/jetson/docker-compose.yml up -d --build`.
+Os alertas e o histórico ficam no volume `ods-s3-dados` e não se perdem.
+
+## Sem internet na Jetson
+
+Peça ao VER-3 a imagem arm64 em arquivo (`ods-s3-arm64.tar`) e carregue com
+`docker load -i ods-s3-arm64.tar`. No `docker run`, use a imagem `ods-s3:latest` no lugar de
+`ghcr.io/ods-26-2/s3:latest`.
 
 ## Rede na Jetson
 
@@ -114,8 +133,9 @@ alerta de teste não fica aberto nas aplicações) e consulta o histórico. São
   `172.18.0.0/16`, o tráfego dos contêineres para o broker é desviado para ela e o S3 não conecta
   (`Failed to get metadata: Broker transport failure`), mesmo com a máquina alcançando o broker.
   Aconteceu num notebook em 06/11/2026. Conferir com
-  `docker network inspect $(docker network ls -q) --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'`;
-  o compose do S3 já fixa a sua rede em `10.250.2.0/24`.
+  `docker network inspect $(docker network ls -q) --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}'`.
+  Vale para o S3 rodando **fora** da Jetson (o compose de `infra/servidor` fixa a rede em `10.250.2.0/24`);
+  na Jetson, o S3 usa a rede do Kafka e fala com `kafka:9092`.
 - Mais detalhes (systemd sem Docker, imagem ARM sem internet na máquina, problemas comuns):
   [IMPLANTACAO_SERVIDOR.md](IMPLANTACAO_SERVIDOR.md) e
   [PASSO_A_PASSO_SERVIDOR_S3.pdf](PASSO_A_PASSO_SERVIDOR_S3.pdf).

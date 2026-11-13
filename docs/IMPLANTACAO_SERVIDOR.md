@@ -3,7 +3,28 @@
 Como deixar o S3 rodando fora da máquina de desenvolvimento, ligado ao broker
 do projeto. **Desde 06/11/2026 é o Kafka da Jetson: `172.18.4.56:9092`**,
 acessível só dentro da rede do DComp (e-mail do professor). Antes era a nuvem de
-testes do Guia do Kafka da TRA-1 (`172.18.4.56:9092`, sem autenticação).
+testes do Guia do Kafka da TRA-1 (`34.66.235.91:9093`, sem autenticação).
+
+## Na nuvem (como está desde 13/11/2026)
+
+O professor pediu que cada squad suba o seu componente numa máquina própria na nuvem, ligada ao
+Kafka público `34.66.235.91:9093`. O S3 roda numa VM do Google Cloud (projeto `ods-s3`, créditos da
+disciplina): `e2-micro`, Ubuntu 24.04 LTS x86/64, disco de 10 GB, sem portas de entrada.
+
+1. Console do Google Cloud → Compute Engine → Instâncias de VM → Criar instância (com o projeto
+   ligado à conta de faturamento de educação).
+2. Botão **SSH** da instância (terminal no navegador) e, lá:
+
+```bash
+git clone https://github.com/ods-26-2/s3.git && cd s3
+bash infra/servidor/instalar.sh 34.66.235.91:9093
+sudo docker exec ods-s3 python tools/verificar_broker.py --broker-oficial
+```
+
+Feito em 13/11/2026: o script instalou o Docker, construiu a imagem (~3 min), criou os 7 tópicos do
+S3 que faltavam e ligou o S3; a verificação deu "Tudo certo". Para trocar o endereço do Kafka, rode
+o `instalar.sh` de novo com o endereço novo. Para atualizar o código: `bash infra/servidor/instalar.sh
+34.66.235.91:9093 --atualizar`.
 
 ## Na Jetson
 

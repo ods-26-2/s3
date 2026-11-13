@@ -28,8 +28,8 @@ BROKER="${1:-}"
 # Só no servidor (Jetson/Linux). No Windows (Git Bash), o sudo abre a janela
 # de administrador e tentaria instalar o Docker na máquina errada.
 if [[ "$(uname -s)" != "Linux" ]]; then
-    echo "Este script roda no servidor Linux (a Jetson), não nesta máquina ($(uname -s))." >&2
-    echo "Entre na Jetson (ssh USUARIO@IP_DA_JETSON, de dentro da rede do DComp) e rode lá." >&2
+    echo "Este script roda no servidor Linux (a máquina na nuvem ou a Jetson), não nesta máquina ($(uname -s))." >&2
+    echo "Entre no servidor (na nuvem: botão SSH do console; na Jetson: ssh USUARIO@IP) e rode lá." >&2
     exit 1
 fi
 shift
